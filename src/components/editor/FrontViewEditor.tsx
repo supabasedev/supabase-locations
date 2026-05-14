@@ -33,7 +33,7 @@ import {
   Box as BoxIcon,
   MousePointer
 } from 'lucide-react';
-import { VisualNode, StructureNode, LogicalLocation, LayoutSplitDivider, SplitTreeEntry, LocationType } from '../../types';
+import { VisualNode, StructureNode, LogicalLocation, LayoutSplitDivider } from '../../types';
 import { cn } from "@/lib/utils";
 import { SECTION_SKINS, SectionSkin } from '../../constants/skins';
 import {
@@ -44,10 +44,8 @@ import {
 
 interface FrontViewEditorProps {
   node: VisualNode;
-  splitTree: SplitTreeEntry | null;
   locations: LogicalLocation[];
   onUpdateNode: (id: string, updates: Partial<VisualNode>) => void;
-  onUpdateSplitTree: (newRoot: StructureNode) => void;
   onAddLocations?: (locations: LogicalLocation[]) => void;
   selectedCellIds: string[];
   onSelectCells: (ids: string[] | ((prev: string[]) => string[])) => void;
@@ -127,9 +125,9 @@ function FrontSetupWizard({
                 )}
               </div>
               <div className="mt-2 flex items-center gap-4 text-[9px] font-bold text-slate-600 uppercase tracking-widest">
-                 <span>Footprint: {node.widthMm}x{node.depthMm || 0}mm</span>
+                 <span>Footprint: {node.width}x{node.depth || 0}cm</span>
                  <span className="w-1 h-1 rounded-full bg-slate-800" />
-                 <span>Rotation: {node.rotationDeg}°</span>
+                 <span>Rotation: {node.rotation}°</span>
               </div>
            </div>
         </div>
@@ -162,24 +160,24 @@ function FrontSetupWizard({
 
               <div className="grid grid-cols-2 gap-6">
                 <div className="space-y-3">
-                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Front Height (mm)</label>
+                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Front Height (cm)</label>
                   <input 
                     type="number"
-                    step="10"
+                    step="1"
                     required
-                    value={setupData.heightMm}
-                    onChange={(e) => setSetupData((prev: any) => ({ ...prev, heightMm: Math.round(parseFloat(e.target.value) || 0) }))}
+                    value={setupData.height}
+                    onChange={(e) => setSetupData((prev: any) => ({ ...prev, height: Math.round(parseFloat(e.target.value) || 0) }))}
                     className="w-full bg-slate-900 border border-slate-700/50 rounded-2xl px-6 py-4 text-white font-black text-xl outline-none focus:ring-2 focus:ring-sky-500 tracking-tight"
-                    placeholder="e.g. 2000"
+                    placeholder="e.g. 200"
                   />
                   <div className="flex gap-2">
-                    {[1200, 1800, 2000, 2400].map(h => (
+                    {[120, 180, 200, 240].map(h => (
                       <button 
                         key={h}
-                        onClick={() => setSetupData((prev: any) => ({ ...prev, heightMm: h }))}
+                        onClick={() => setSetupData((prev: any) => ({ ...prev, height: h }))}
                         className="px-3 py-1.5 rounded-lg bg-slate-800 text-[10px] font-black text-slate-400 uppercase tracking-widest hover:text-white transition-colors"
                       >
-                        {h}mm
+                        {h}
                       </button>
                     ))}
                   </div>
@@ -188,9 +186,9 @@ function FrontSetupWizard({
                 <div className="space-y-6">
                   <div className="space-y-3">
                     <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest flex justify-between">
-                      Front Width (mm)
+                      Front Width (cm)
                       <button 
-                        onClick={() => setSetupData((prev: any) => ({ ...prev, useCustomWidth: !prev.useCustomWidth, widthMm: node.widthMm }))}
+                        onClick={() => setSetupData((prev: any) => ({ ...prev, useCustomWidth: !prev.useCustomWidth, width: node.width }))}
                         className={`text-[9px] lowercase italic transition-colors ${setupData.useCustomWidth ? 'text-sky-400' : 'text-slate-600'}`}
                       >
                         {setupData.useCustomWidth ? 'sync with footprint' : 'use custom width'}
@@ -198,17 +196,17 @@ function FrontSetupWizard({
                     </label>
                     <input 
                       type="number"
-                      step="10"
+                      step="1"
                       disabled={!setupData.useCustomWidth}
-                      value={setupData.widthMm}
-                      onChange={(e) => setSetupData((prev: any) => ({ ...prev, widthMm: Math.round(parseFloat(e.target.value) || 0) }))}
+                      value={setupData.width}
+                      onChange={(e) => setSetupData((prev: any) => ({ ...prev, width: Math.round(parseFloat(e.target.value) || 0) }))}
                       className={`w-full bg-slate-900 border border-slate-700/50 rounded-2xl px-6 py-4 text-white font-black text-xl outline-none transition-all tracking-tight ${!setupData.useCustomWidth ? 'opacity-30 cursor-not-allowed' : 'focus:ring-2 focus:ring-sky-500'}`}
                     />
                   </div>
                   <div className="space-y-3">
-                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Footprint Depth (mm)</label>
+                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Footprint Depth (cm)</label>
                     <div className="w-full bg-slate-900 border border-slate-700/50 rounded-2xl px-6 py-4 text-slate-500 font-black text-xl opacity-30 select-none tracking-tight">
-                      {node.depthMm || 0}
+                      {node.depth || 0}
                     </div>
                   </div>
                 </div>
@@ -230,7 +228,7 @@ function FrontSetupWizard({
                 <div className="bg-slate-900 aspect-square rounded-[3rem] border border-slate-800 relative flex items-center justify-center p-12 overflow-hidden">
                    <div 
                      className="absolute inset-x-12 inset-y-16 border-2 border-slate-700 rounded-xl bg-slate-950 flex items-center justify-center shadow-2xl transition-transform duration-500"
-                     style={{ transform: `rotate(${node.rotationDeg}deg)` }}
+                     style={{ transform: `rotate(${node.rotation}deg)` }}
                    >
                       <span className="text-[10px] font-black text-slate-800 uppercase tracking-widest rotate-[-90deg]">FOOTPRINT</span>
                       
@@ -310,11 +308,11 @@ function FrontSetupWizard({
                       {setupData.rowCount}
                    </div>
                    <div className="w-48 space-y-2 border-l border-slate-800 pl-6 border-dashed">
-                      <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block">Row Divider (mm)</label>
+                      <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block">Row Divider (cm)</label>
                       <input 
                         type="number" step="1"
-                        value={setupData.dividerRowThicknessMm}
-                        onChange={(e) => setSetupData((prev: any) => ({ ...prev, dividerRowThicknessMm: Math.round(parseFloat(e.target.value) || 0) }))}
+                        value={setupData.dividerRowThickness}
+                        onChange={(e) => setSetupData((prev: any) => ({ ...prev, dividerRowThickness: Math.round(parseFloat(e.target.value) || 0) }))}
                         className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2 text-white font-black text-xs outline-none focus:ring-1 focus:ring-sky-500"
                       />
                    </div>
@@ -361,11 +359,11 @@ function FrontSetupWizard({
                       {setupData.colCount}
                    </div>
                    <div className="w-48 space-y-2 border-l border-slate-800 pl-6 border-dashed">
-                      <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block">Col Divider (mm)</label>
+                      <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block">Col Divider (cm)</label>
                       <input 
                         type="number" step="1"
-                        value={setupData.dividerColThicknessMm}
-                        onChange={(e) => setSetupData((prev: any) => ({ ...prev, dividerColThicknessMm: Math.round(parseFloat(e.target.value) || 0) }))}
+                        value={setupData.dividerColThickness}
+                        onChange={(e) => setSetupData((prev: any) => ({ ...prev, dividerColThickness: Math.round(parseFloat(e.target.value) || 0) }))}
                         className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2 text-white font-black text-xs outline-none focus:ring-1 focus:ring-sky-500"
                       />
                    </div>
@@ -443,12 +441,12 @@ function FrontSetupWizard({
                      className="grid grid-cols-3 gap-4 pt-4 border-t border-slate-800/50 overflow-hidden"
                    >
                       <div className="space-y-2">
-                         <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block">Frame Thickness (mm)</label>
+                         <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block">Frame Thickness (cm)</label>
                          <input 
                            type="number"
                            step="1"
-                           value={setupData.frameThicknessMm}
-                           onChange={(e) => setSetupData((prev: any) => ({ ...prev, frameThicknessMm: Math.round(parseFloat(e.target.value) || 0) }))}
+                           value={setupData.frameThickness}
+                           onChange={(e) => setSetupData((prev: any) => ({ ...prev, frameThickness: Math.round(parseFloat(e.target.value) || 0) }))}
                            className="w-full bg-slate-950 border border-slate-700/50 rounded-xl px-4 py-3 text-white font-black text-xs outline-none focus:ring-1 focus:ring-sky-500"
                          />
                       </div>
@@ -674,7 +672,7 @@ function FrontSetupWizard({
                 setWizardStep(prev => prev + 1);
               }
             }}
-            disabled={wizardStep === 1 && setupData.heightMm <= 0}
+            disabled={wizardStep === 1 && setupData.height <= 0}
             className="px-12 py-4 bg-sky-500 hover:bg-sky-400 text-slate-950 text-[10px] font-black uppercase tracking-[0.2em] rounded-2xl transition-all shadow-2xl shadow-sky-500/20 disabled:opacity-30 disabled:cursor-not-allowed"
           >
             {wizardStep === 4 ? 'Initialize Projection' : 'Next Step'}
@@ -687,10 +685,8 @@ function FrontSetupWizard({
 
 export default function FrontViewEditor({ 
   node, 
-  splitTree,
   locations, 
   onUpdateNode, 
-  onUpdateSplitTree,
   onAddLocations,
   selectedCellIds,
   onSelectCells,
@@ -734,7 +730,7 @@ export default function FrontViewEditor({
     startNumber: 1,
     padding: 0,
     count: 2,
-    dividerThicknessMm: 20,
+    dividerThickness: 2,
     dividerType: 'solid' as 'solid' | 'gap',
     dividerMaterial: 'metal' as any,
     dividerColor: '#475569',
@@ -744,17 +740,17 @@ export default function FrontViewEditor({
   // Setup Wizard State
   const [wizardStep, setWizardStep] = useState(1);
   const [setupData, setSetupData] = useState({
-    widthMm: node.widthMm,
-    heightMm: node.heightMm || node.widthMm,
-    depthMm: node.depthMm || 0,
+    width: node.width,
+    height: node.height || node.width,
+    depth: node.depth || 0,
     useCustomWidth: false,
-    frontSide: node.front?.side || 'bottom',
+    frontSide: node.frontSide || 'bottom',
     template: 'shelves' as 'blank' | 'shelves' | 'rows' | 'columns' | 'grid' | 'wall_bins' | 'pallet_rack' | 'drawer_cabinet' | 'custom',
     generateLocations: false,
     rowCount: 5,
     colCount: 3,
-    dividerRowThicknessMm: 50,
-    dividerColThicknessMm: 50,
+    dividerRowThickness: 5,
+    dividerColThickness: 5,
     dividerRowMaterial: 'metal' as any,
     dividerColMaterial: 'metal' as any,
     dividerRowColor: '#475569',
@@ -763,7 +759,7 @@ export default function FrontViewEditor({
     dividerColType: 'solid' as 'solid' | 'gap',
     primaryDivider: 'row' as 'row' | 'col',
     hasFrame: true,
-    frameThicknessMm: 50,
+    frameThickness: 5,
     frameType: 'solid' as 'solid' | 'gap',
     frameMaterial: 'metal' as any,
     cornerRadiusTopLeft: node.style?.cornerRadiusTopLeft || 0,
@@ -777,17 +773,17 @@ export default function FrontViewEditor({
   useEffect(() => {
     setWizardStep(1);
     setSetupData({
-      widthMm: node.widthMm,
-      heightMm: node.heightMm || node.widthMm,
-      depthMm: node.depthMm || 0,
+      width: node.width,
+      height: node.height || node.width,
+      depth: node.depth || 0,
       useCustomWidth: false,
-      frontSide: node.front?.side || 'bottom',
+      frontSide: node.frontSide || 'bottom',
       template: 'shelves' as 'blank' | 'shelves' | 'rows' | 'columns' | 'grid' | 'wall_bins' | 'pallet_rack' | 'drawer_cabinet' | 'custom',
       generateLocations: false,
       rowCount: 5,
       colCount: 3,
-      dividerRowThicknessMm: 50,
-      dividerColThicknessMm: 50,
+      dividerRowThickness: 5,
+      dividerColThickness: 5,
       dividerRowMaterial: 'metal' as any,
       dividerColMaterial: 'metal' as any,
       dividerRowColor: '#475569',
@@ -796,7 +792,7 @@ export default function FrontViewEditor({
       dividerColType: 'solid' as 'solid' | 'gap',
       primaryDivider: 'row' as 'row' | 'col',
       hasFrame: true,
-      frameThicknessMm: 50,
+      frameThickness: 5,
       frameType: 'solid' as 'solid' | 'gap',
       frameMaterial: 'metal' as any,
       cornerRadiusTopLeft: node.style?.cornerRadiusTopLeft || 0,
@@ -843,8 +839,8 @@ export default function FrontViewEditor({
   const fitToScreen = () => {
     if (dimensions.width > 0 && dimensions.height > 0) {
       const padding = 120;
-      const targetWidth = node.widthMm || 1000;
-      const targetHeight = node.heightMm || 2000;
+      const targetWidth = node.width || 1000;
+      const targetHeight = node.height || 2000;
       
       const scaleX = (dimensions.width - padding) / targetWidth;
       const scaleY = (dimensions.height - padding) / targetHeight;
@@ -861,40 +857,40 @@ export default function FrontViewEditor({
 
   // Initial fit logic - robust trigger
   useEffect(() => {
-    if (node.front?.isConfigured && dimensions.width > 0) {
+    if (node.frontSetupDone && dimensions.width > 0) {
       // Use a small delay for the very first fit after setup to ensure everything is rendered
       const timer = setTimeout(fitToScreen, 60);
       return () => clearTimeout(timer);
     }
-  }, [node.id, node.front?.isConfigured, dimensions.width, dimensions.height, node.widthMm, node.heightMm, fitTrigger]);
+  }, [node.id, node.frontSetupDone, dimensions.width, dimensions.height, node.width, node.height, fitTrigger]);
 
   // Total scale (cumulative)
   const totalScale = useMemo(() => baseScale * zoomLevel, [baseScale, zoomLevel]);
 
   // Local state for the structure to avoid constant top-level re-renders during interactive operations
   const [localStructure, setLocalStructure] = useState<StructureNode>(() => {
-    if (splitTree?.root) return splitTree.root;
+    if (node.structure) return node.structure;
     return {
       id: `root-${node.id}`,
-      nodeKind: 'cell' as const,
-      sizeValue: 1,
+      type: 'cell' as const,
+      size: 1,
       label: node.label
     };
   });
 
   // Keep local structure in sync with prop updates (but not vice versa to allow local editing)
   useEffect(() => {
-    if (splitTree?.root) {
-      setLocalStructure(splitTree.root);
+    if (node.structure) {
+      setLocalStructure(node.structure);
     }
-  }, [node.id, splitTree?.root]);
+  }, [node.id, node.structure]);
 
   const updateStructure = (newStructure: StructureNode) => {
     setLocalStructure(newStructure);
     // Debounced global update
     if (resizeTimeoutRef.current) clearTimeout(resizeTimeoutRef.current);
     resizeTimeoutRef.current = setTimeout(() => {
-      onUpdateSplitTree(newStructure);
+      onUpdateNode(node.id, { structure: newStructure });
     }, 200);
   };
 
@@ -951,8 +947,8 @@ export default function FrontViewEditor({
     // To do better, we'd need the global visuals list.
     
     const unlinkedLocations = locations.filter(l => 
-      l.locationCategory !== LocationType.WAREHOUSE && 
-      l.locationCategory !== LocationType.ZONE &&
+      l.locationType !== 'warehouse' && 
+      l.locationType !== 'zone' &&
       (l.mappedVisualizationCount || 0) === 0
     );
     
@@ -1005,10 +1001,9 @@ export default function FrontViewEditor({
       if (found) return { divider: found, parent: root };
     }
     if (root.frame) {
-      const frame = root.frame as any;
       for (const edge of ['top', 'bottom', 'left', 'right'] as const) {
-        if (frame[edge]?.id === dividerId) {
-          return { divider: frame[edge], parent: root };
+        if (root.frame[edge as keyof typeof root.frame]?.id === dividerId) {
+          return { divider: root.frame[edge as keyof typeof root.frame]!, parent: root };
         }
       }
     }
@@ -1033,10 +1028,10 @@ export default function FrontViewEditor({
         newParent.dividers = newParent.dividers.map(d => d?.id === dividerId ? { ...d, ...updates } as LayoutSplitDivider : d);
       }
       if (newParent.frame) {
-        const newFrame = { ...newParent.frame } as any;
+        const newFrame = { ...newParent.frame };
         for (const edge of ['top', 'bottom', 'left', 'right'] as const) {
-          if (newFrame[edge]?.id === dividerId) {
-            newFrame[edge] = { ...newFrame[edge], ...updates };
+          if (newFrame[edge as keyof typeof newFrame]?.id === dividerId) {
+            newFrame[edge as keyof typeof newFrame] = { ...newFrame[edge as keyof typeof newFrame]!, ...updates };
           }
         }
         newParent.frame = newFrame;
@@ -1059,7 +1054,7 @@ export default function FrontViewEditor({
     if (!result) return;
     
     const { parent: initialParent, divider: initialDivider } = result;
-    const isHorizontal = initialParent.splitDirection === 'horizontal';
+    const isHorizontal = initialParent.split === 'horizontal';
     
     // Find the index of the divider in its parent
     const dividerIndex = initialParent.dividers?.indexOf(initialDivider);
@@ -1068,7 +1063,7 @@ export default function FrontViewEditor({
     const alignedIds: string[] = [];
     
     const collectAligned = (root: StructureNode) => {
-      if (root.nodeKind === 'container' && root.splitDirection === initialParent.splitDirection && root.dividers && root.dividers.length === initialParent.dividers?.length) {
+      if (root.type === 'container' && root.split === initialParent.split && root.dividers && root.dividers.length === initialParent.dividers?.length) {
         const d = root.dividers[dividerIndex];
         if (d) alignedIds.push(d.id);
       }
@@ -1127,12 +1122,12 @@ export default function FrontViewEditor({
     const { id, direction } = showNamingPanel;
     
     const target = findNodeById(structure, id);
-    if (!target || target.nodeKind !== 'cell') return;
+    if (!target || target.type !== 'cell') return;
 
     const newChildren: StructureNode[] = Array.from({ length: namingConfig.count }).map((_, i) => ({
       id: `cell-${Math.random().toString(36).substr(2, 9)}`,
-      nodeKind: 'cell',
-      sizeValue: 1 / namingConfig.count,
+      type: 'cell',
+      size: 1 / namingConfig.count,
       displayLabel: generateLabel(namingConfig.type, i, namingConfig),
       label: `${target.label || 'Cell'} ${i + 1}`, // Internal descriptive name
       locationId: (i === namingConfig.inheritLocationIdx && target.locationId) ? target.locationId : null,
@@ -1140,16 +1135,16 @@ export default function FrontViewEditor({
 
     const newContainer: StructureNode = {
       id: `container-${Math.random().toString(36).substr(2, 9)}`,
-      nodeKind: 'container',
+      type: 'container',
       label: `${target.displayLabel || target.label || 'Cell'} Split`,
-      splitDirection: direction,
+      split: direction,
       splitType: namingConfig.type,
-      sizeValue: target.sizeValue,
+      size: target.size,
       children: newChildren,
       dividers: Array.from({ length: namingConfig.count - 1 }).map(() => ({
         id: `divider-${Math.random().toString(36).substr(2, 9)}`,
         type: namingConfig.dividerType,
-        thicknessMm: namingConfig.dividerThicknessMm,
+        thickness: namingConfig.dividerThickness,
         material: namingConfig.dividerMaterial,
         color: namingConfig.dividerColor
       }))
@@ -1211,8 +1206,8 @@ export default function FrontViewEditor({
         code: code,
         name: `${node.label} - ${label}`,
         parentId: parentLocId,
-        locationCategory: type as any,
-        canStoreInventory: true,
+        locationType: type as any,
+        allowsStock: true,
         isReceivable: true,
         isPickable: true,
         isVirtual: false,
@@ -1221,18 +1216,18 @@ export default function FrontViewEditor({
       return id;
     };
 
-    const createDivider = (type: 'solid' | 'gap', thicknessMm: number, material: 'wood' | 'metal' | 'plastic' | 'empty' | 'custom') => ({
+    const createDivider = (type: 'solid' | 'gap', thickness: number, material: 'wood' | 'metal' | 'plastic' | 'empty' | 'custom') => ({
       id: `divider-${Math.random().toString(36).substr(2, 9)}`,
       type,
-      thicknessMm,
+      thickness,
       material,
       color: material === 'wood' ? '#78350f' : material === 'metal' ? '#475569' : material === 'plastic' ? '#0ea5e9' : undefined,
     });
 
     let initialStructure: StructureNode = {
       id: rootId,
-      nodeKind: 'cell',
-      sizeValue: 1,
+      type: 'cell',
+      size: 1,
       label: node.label,
       displayLabel: node.label.toUpperCase()
     };
@@ -1246,10 +1241,10 @@ export default function FrontViewEditor({
       return {
         ...s,
         frame: {
-          top: { id: 'frame-t', type: setupData.frameType, thicknessMm: setupData.frameThicknessMm, material: setupData.frameMaterial, color },
-          bottom: { id: 'frame-b', type: setupData.frameType, thicknessMm: setupData.frameThicknessMm, material: setupData.frameMaterial, color },
-          left: { id: 'frame-l', type: setupData.frameType, thicknessMm: setupData.frameThicknessMm, material: setupData.frameMaterial, color },
-          right: { id: 'frame-r', type: setupData.frameType, thicknessMm: setupData.frameThicknessMm, material: setupData.frameMaterial, color },
+          top: { id: 'frame-t', type: setupData.frameType, thickness: setupData.frameThickness, material: setupData.frameMaterial, color },
+          bottom: { id: 'frame-b', type: setupData.frameType, thickness: setupData.frameThickness, material: setupData.frameMaterial, color },
+          left: { id: 'frame-l', type: setupData.frameType, thickness: setupData.frameThickness, material: setupData.frameMaterial, color },
+          right: { id: 'frame-r', type: setupData.frameType, thickness: setupData.frameThickness, material: setupData.frameMaterial, color },
         }
       };
     };
@@ -1266,8 +1261,8 @@ export default function FrontViewEditor({
         
         return {
           id: `cell-${Math.random().toString(36).substr(2, 9)}`,
-          nodeKind: 'cell',
-          sizeValue: 1 / count,
+          type: 'cell',
+          size: 1 / count,
           displayLabel: shortCode,
           label: `${setupData.template === 'shelves' ? 'Shelf' : 'Row'} ${i + 1}`,
           splitType: type as any,
@@ -1277,14 +1272,14 @@ export default function FrontViewEditor({
 
       initialStructure = {
         id: `root-${node.id}`, // Use consistent root ID
-        nodeKind: 'container',
+        type: 'container',
         label: node.label,
         displayLabel: node.label.toUpperCase(),
-        splitDirection: 'horizontal',
+        split: 'horizontal',
         splitType: type as any,
-        sizeValue: 1,
+        size: 1,
         children,
-        dividers: Array.from({ length: count - 1 }).map(() => createDivider(setupData.dividerRowType, setupData.dividerRowThicknessMm, setupData.dividerRowMaterial))
+        dividers: Array.from({ length: count - 1 }).map(() => createDivider(setupData.dividerRowType, setupData.dividerRowThickness, setupData.dividerRowMaterial))
       };
     } else if (setupData.template === 'columns') {
       const count = setupData.colCount;
@@ -1294,8 +1289,8 @@ export default function FrontViewEditor({
 
         return {
           id: `cell-${Math.random().toString(36).substr(2, 9)}`,
-          nodeKind: 'cell',
-          sizeValue: 1 / count,
+          type: 'cell',
+          size: 1 / count,
           displayLabel: shortCode,
           label: `Column ${i + 1}`,
           splitType: 'columns',
@@ -1305,14 +1300,14 @@ export default function FrontViewEditor({
 
       initialStructure = {
         id: `root-${node.id}`, // Use consistent root ID
-        nodeKind: 'container',
+        type: 'container',
         label: node.label,
         displayLabel: node.label.toUpperCase(),
-        splitDirection: 'vertical',
+        split: 'vertical',
         splitType: 'columns',
-        sizeValue: 1,
+        size: 1,
         children,
-        dividers: Array.from({ length: count - 1 }).map(() => createDivider(setupData.dividerColType, setupData.dividerColThicknessMm, setupData.dividerColMaterial))
+        dividers: Array.from({ length: count - 1 }).map(() => createDivider(setupData.dividerColType, setupData.dividerColThickness, setupData.dividerColMaterial))
       };
     } else if (setupData.template === 'grid') {
       const rows = setupData.rowCount;
@@ -1326,8 +1321,8 @@ export default function FrontViewEditor({
 
             return {
               id: `cell-${Math.random().toString(36).substr(2, 9)}`,
-              nodeKind: 'cell',
-              sizeValue: 1 / rows,
+              type: 'cell',
+              size: 1 / rows,
               displayLabel: shortCode,
               label: `Position R${rIdx + 1} C${cIdx + 1}`,
               locationId: locId
@@ -1336,23 +1331,23 @@ export default function FrontViewEditor({
 
           return {
             id: `col-${Math.random().toString(36).substr(2, 9)}`,
-            nodeKind: 'container',
-            splitDirection: 'horizontal',
-            sizeValue: 1 / cols,
+            type: 'container',
+            split: 'horizontal',
+            size: 1 / cols,
             children: rowChildren,
-            dividers: Array.from({ length: rows - 1 }).map(() => createDivider(setupData.dividerRowType, setupData.dividerRowThicknessMm, setupData.dividerRowMaterial))
+            dividers: Array.from({ length: rows - 1 }).map(() => createDivider(setupData.dividerRowType, setupData.dividerRowThickness, setupData.dividerRowMaterial))
           };
         });
 
         initialStructure = {
           id: `root-${node.id}`, // Use consistent root ID
-          nodeKind: 'container',
+          type: 'container',
           label: node.label,
           displayLabel: node.label.toUpperCase(),
-          splitDirection: 'vertical',
-          sizeValue: 1,
+          split: 'vertical',
+          size: 1,
           children: colChildren,
-          dividers: Array.from({ length: cols - 1 }).map(() => createDivider(setupData.dividerColType, setupData.dividerColThicknessMm, setupData.dividerColMaterial))
+          dividers: Array.from({ length: cols - 1 }).map(() => createDivider(setupData.dividerColType, setupData.dividerColThickness, setupData.dividerColMaterial))
         };
       } else {
         const rowChildren: StructureNode[] = Array.from({ length: rows }).map((_, rIdx) => {
@@ -1362,8 +1357,8 @@ export default function FrontViewEditor({
 
             return {
               id: `cell-${Math.random().toString(36).substr(2, 9)}`,
-              nodeKind: 'cell',
-              sizeValue: 1 / cols,
+              type: 'cell',
+              size: 1 / cols,
               displayLabel: shortCode,
               label: `Position R${rIdx + 1} C${cIdx + 1}`,
               locationId: locId
@@ -1372,23 +1367,23 @@ export default function FrontViewEditor({
 
           return {
             id: `row-${Math.random().toString(36).substr(2, 9)}`,
-            nodeKind: 'container',
-            splitDirection: 'vertical',
-            sizeValue: 1 / rows,
+            type: 'container',
+            split: 'vertical',
+            size: 1 / rows,
             children: colChildren,
-            dividers: Array.from({ length: cols - 1 }).map(() => createDivider(setupData.dividerColType, setupData.dividerColThicknessMm, setupData.dividerColMaterial))
+            dividers: Array.from({ length: cols - 1 }).map(() => createDivider(setupData.dividerColType, setupData.dividerColThickness, setupData.dividerColMaterial))
           };
         });
 
         initialStructure = {
           id: `root-${node.id}`, // Use consistent root ID
-          nodeKind: 'container',
+          type: 'container',
           label: node.label,
           displayLabel: node.label.toUpperCase(),
-          splitDirection: 'horizontal',
-          sizeValue: 1,
+          split: 'horizontal',
+          size: 1,
           children: rowChildren,
-          dividers: Array.from({ length: rows - 1 }).map(() => createDivider(setupData.dividerRowType, setupData.dividerRowThicknessMm, setupData.dividerRowMaterial))
+          dividers: Array.from({ length: rows - 1 }).map(() => createDivider(setupData.dividerRowType, setupData.dividerRowThickness, setupData.dividerRowMaterial))
         };
       }
     } else if (setupData.template === 'wall_bins') {
@@ -1404,8 +1399,8 @@ export default function FrontViewEditor({
 
             return {
               id: `cell-${Math.random().toString(36).substr(2, 9)}`,
-              nodeKind: 'cell',
-              sizeValue: 1 / rows,
+              type: 'cell',
+              size: 1 / rows,
               displayLabel: shortCode,
               label: `Bin ${rIdx * cols + cIdx + 1}`,
               splitType: 'bins',
@@ -1415,23 +1410,23 @@ export default function FrontViewEditor({
 
           return {
             id: `bin-col-${Math.random().toString(36).substr(2, 9)}`,
-            nodeKind: 'container',
-            splitDirection: 'horizontal',
-            sizeValue: 1 / cols,
+            type: 'container',
+            split: 'horizontal',
+            size: 1 / cols,
             children: rowChildren,
-            dividers: Array.from({ length: rows - 1 }).map(() => createDivider(setupData.dividerRowType, setupData.dividerRowThicknessMm, setupData.dividerRowMaterial))
+            dividers: Array.from({ length: rows - 1 }).map(() => createDivider(setupData.dividerRowType, setupData.dividerRowThickness, setupData.dividerRowMaterial))
           };
         });
 
         initialStructure = {
           id: `root-${node.id}`, // Use consistent root ID
-          nodeKind: 'container',
+          type: 'container',
           label: node.label,
           displayLabel: node.label.toUpperCase(),
-          splitDirection: 'vertical',
-          sizeValue: 1,
+          split: 'vertical',
+          size: 1,
           children: colChildren,
-          dividers: Array.from({ length: cols - 1 }).map(() => createDivider(setupData.dividerColType, setupData.dividerColThicknessMm, setupData.dividerColMaterial))
+          dividers: Array.from({ length: cols - 1 }).map(() => createDivider(setupData.dividerColType, setupData.dividerColThickness, setupData.dividerColMaterial))
         };
       } else {
         const rowChildren: StructureNode[] = Array.from({ length: rows }).map((_, rIdx) => {
@@ -1442,8 +1437,8 @@ export default function FrontViewEditor({
 
             return {
               id: `cell-${Math.random().toString(36).substr(2, 9)}`,
-              nodeKind: 'cell',
-              sizeValue: 1 / cols,
+              type: 'cell',
+              size: 1 / cols,
               displayLabel: shortCode,
               label: `Bin ${rIdx * cols + cIdx + 1}`,
               splitType: 'bins',
@@ -1453,23 +1448,23 @@ export default function FrontViewEditor({
 
           return {
             id: `bin-row-${Math.random().toString(36).substr(2, 9)}`,
-            nodeKind: 'container',
-            splitDirection: 'vertical',
-            sizeValue: 1 / rows,
+            type: 'container',
+            split: 'vertical',
+            size: 1 / rows,
             children: colChildren,
-            dividers: Array.from({ length: cols - 1 }).map(() => createDivider(setupData.dividerColType, setupData.dividerColThicknessMm, setupData.dividerColMaterial))
+            dividers: Array.from({ length: cols - 1 }).map(() => createDivider(setupData.dividerColType, setupData.dividerColThickness, setupData.dividerColMaterial))
           };
         });
 
         initialStructure = {
           id: `root-${node.id}`, // Use consistent root ID
-          nodeKind: 'container',
+          type: 'container',
           label: node.label,
           displayLabel: node.label.toUpperCase(),
-          splitDirection: 'horizontal',
-          sizeValue: 1,
+          split: 'horizontal',
+          size: 1,
           children: rowChildren,
-          dividers: Array.from({ length: rows - 1 }).map(() => createDivider(setupData.dividerRowType, setupData.dividerRowThicknessMm, setupData.dividerRowMaterial))
+          dividers: Array.from({ length: rows - 1 }).map(() => createDivider(setupData.dividerRowType, setupData.dividerRowThickness, setupData.dividerRowMaterial))
         };
       }
     }
@@ -1477,14 +1472,12 @@ export default function FrontViewEditor({
     initialStructure = wrapWithFrame(initialStructure);
 
     onUpdateNode(node.id, {
-      widthMm: setupData.widthMm,
-      heightMm: setupData.heightMm,
-      depthMm: setupData.depthMm,
-      front: {
-        side: setupData.frontSide,
-        isConfigured: true,
-        splitTreeId: node.front?.splitTreeId || `st-${Math.random().toString(36).substr(2, 9)}`
-      },
+      width: setupData.width,
+      height: setupData.height,
+      depth: setupData.depth,
+      frontSide: setupData.frontSide,
+      frontSetupDone: true,
+      structure: initialStructure,
       style: {
         ...node.style,
         cornerRadiusTopLeft: setupData.cornerRadiusTopLeft,
@@ -1494,8 +1487,6 @@ export default function FrontViewEditor({
         isCornerRadiusLocked: setupData.isCornerRadiusLocked,
       }
     });
-
-    onUpdateSplitTree(initialStructure);
 
     if (newLocations.length > 0 && onAddLocations) {
       onAddLocations(newLocations);
@@ -1513,7 +1504,7 @@ export default function FrontViewEditor({
       return node;
     };
     const newStructure = updateRecursive(structure);
-    onUpdateSplitTree(newStructure);
+    onUpdateNode(node.id, { structure: newStructure });
   };
 
   const handleResize = (containerId: string, layout: Record<string, number>) => {
@@ -1522,7 +1513,7 @@ export default function FrontViewEditor({
 
     const newChildren = container.children.map((child) => ({
       ...child,
-      sizeValue: (layout[child.id] || (child.sizeValue * 100)) / 100
+      size: (layout[child.id] || (child.size * 100)) / 100
     }));
 
     updateStructure(replaceNodeById(structure, containerId, { ...container, children: newChildren }));
@@ -1564,7 +1555,7 @@ export default function FrontViewEditor({
   };
 
   const renderRecursive = (sNode: StructureNode): React.ReactNode => {
-    if (sNode.nodeKind === 'cell') {
+    if (sNode.type === 'cell') {
       const isSelected = selectedCellIds.includes(sNode.id);
       const linkedLocation = sNode.locationId ? locations.find(l => l.id === sNode.locationId) : null;
       const skin = sNode.skin ? SECTION_SKINS.find(s => s.id === sNode.skin) : null;
@@ -1631,7 +1622,7 @@ export default function FrontViewEditor({
       );
     }
 
-    const isHorizontal = sNode.splitDirection === 'horizontal';
+    const isHorizontal = sNode.split === 'horizontal';
 
     const content = (
       <ResizablePanelGroup 
@@ -1652,7 +1643,7 @@ export default function FrontViewEditor({
             <React.Fragment key={child.id}>
               <ResizablePanel 
                 id={child.id}
-                defaultSize={(child.sizeValue || 1) * 100}
+                defaultSize={(child.size || 1) * 100}
                 minSize={5}
                 className="flex flex-col"
               >
@@ -1663,8 +1654,8 @@ export default function FrontViewEditor({
                   disabled={isHandleLocked}
                   style={{
                     backgroundColor: divider?.type === 'solid' ? (divider.color || '#475569') : 'transparent',
-                    width: !isHorizontal ? `${(divider?.thicknessMm || 1) * totalScale}px` : '100%',
-                    height: isHorizontal ? `${(divider?.thicknessMm || 1) * totalScale}px` : '100%',
+                    width: !isHorizontal ? `${(divider?.thickness || 1) * totalScale}px` : '100%',
+                    height: isHorizontal ? `${(divider?.thickness || 1) * totalScale}px` : '100%',
                     opacity: divider?.opacity ?? 1,
                   }}
                   className={cn(
@@ -1717,7 +1708,7 @@ export default function FrontViewEditor({
              <div 
                onClick={(e) => { e.stopPropagation(); onSelectDividers([top.id]); onSelectCells([]); }}
                className={`shrink-0 transition-all cursor-pointer ${selectedDividerIds.includes(top.id) ? 'ring-2 ring-sky-500 z-30' : 'hover:bg-sky-500/10'}`}
-               style={{ height: `${top.thicknessMm * totalScale}px`, backgroundColor: top.type === 'solid' ? top.color || '#1e293b' : 'transparent' }}
+               style={{ height: `${top.thickness * totalScale}px`, backgroundColor: top.type === 'solid' ? top.color || '#1e293b' : 'transparent' }}
              />
            )}
            <div className="flex-1 flex flex-row min-h-0">
@@ -1725,7 +1716,7 @@ export default function FrontViewEditor({
                 <div 
                   onClick={(e) => { e.stopPropagation(); onSelectDividers([left.id]); onSelectCells([]); }}
                   className={`shrink-0 transition-all cursor-pointer ${selectedDividerIds.includes(left.id) ? 'ring-2 ring-sky-500 z-30' : 'hover:bg-sky-500/10'}`}
-                  style={{ width: `${left.thicknessMm * totalScale}px`, backgroundColor: left.type === 'solid' ? left.color || '#1e293b' : 'transparent' }}
+                  style={{ width: `${left.thickness * totalScale}px`, backgroundColor: left.type === 'solid' ? left.color || '#1e293b' : 'transparent' }}
                 />
               )}
 
@@ -1736,7 +1727,7 @@ export default function FrontViewEditor({
                 <div 
                   onClick={(e) => { e.stopPropagation(); onSelectDividers([right.id]); onSelectCells([]); }}
                   className={`shrink-0 transition-all cursor-pointer ${selectedDividerIds.includes(right.id) ? 'ring-2 ring-sky-500 z-30' : 'hover:bg-sky-500/10'}`}
-                  style={{ width: `${right.thicknessMm * totalScale}px`, backgroundColor: right.type === 'solid' ? right.color || '#1e293b' : 'transparent' }}
+                  style={{ width: `${right.thickness * totalScale}px`, backgroundColor: right.type === 'solid' ? right.color || '#1e293b' : 'transparent' }}
                 />
               )}
            </div>
@@ -1744,7 +1735,7 @@ export default function FrontViewEditor({
              <div 
                onClick={(e) => { e.stopPropagation(); onSelectDividers([bottom.id]); onSelectCells([]); }}
                className={`shrink-0 transition-all cursor-pointer ${selectedDividerIds.includes(bottom.id) ? 'ring-2 ring-sky-500 z-30' : 'hover:bg-sky-500/10'}`}
-               style={{ height: `${bottom.thicknessMm * totalScale}px`, backgroundColor: bottom.type === 'solid' ? bottom.color || '#1e293b' : 'transparent' }}
+               style={{ height: `${bottom.thickness * totalScale}px`, backgroundColor: bottom.type === 'solid' ? bottom.color || '#1e293b' : 'transparent' }}
              />
            )}
         </div>
@@ -1761,17 +1752,17 @@ export default function FrontViewEditor({
     const isBottom = orientation === 'horizontal-bottom';
     const isRight = orientation === 'vertical-right';
     
-    const majorStep = 500; // 500mm (50cm)
-    const minorStep = 100; // 100mm (10cm)
+    const majorStep = 50; // 50cm
+    const minorStep = 10; // 10cm
     const ticks = [];
     
-    // Bounds for world coordinates in mm
-    const startWorldMm = (0 - (isHorizontal ? pan.x : pan.y)) / totalScale;
-    const endWorldMm = ((isHorizontal ? dimensions.width : dimensions.height) - (isHorizontal ? pan.x : pan.y)) / totalScale;
+    // Bounds for world coordinates in cm
+    const startWorldCm = (0 - (isHorizontal ? pan.x : pan.y)) / totalScale;
+    const endWorldCm = ((isHorizontal ? dimensions.width : dimensions.height) - (isHorizontal ? pan.x : pan.y)) / totalScale;
     
-    const limit = isHorizontal ? node.widthMm : node.heightMm;
-    const startTick = Math.max(0, Math.floor(startWorldMm / minorStep) * minorStep);
-    const endTick = Math.min(limit, Math.ceil(endWorldMm / minorStep) * minorStep);
+    const limit = isHorizontal ? node.width : node.height;
+    const startTick = Math.max(0, Math.floor(startWorldCm / minorStep) * minorStep);
+    const endTick = Math.min(limit, Math.ceil(endWorldCm / minorStep) * minorStep);
 
     for (let val = startTick; val <= endTick; val += minorStep) {
       const isMajor = val % majorStep === 0;
@@ -1792,7 +1783,7 @@ export default function FrontViewEditor({
             <span 
               className={`absolute text-[8px] font-bold text-slate-500 whitespace-nowrap ${isHorizontal ? 'left-1' : 'top-1'} ${isHorizontal ? (isBottom ? 'top-1' : 'bottom-1') : (isRight ? 'left-1 rotate-90 origin-top-left' : 'right-1 rotate-90 origin-top-right')}`}
             >
-              {val / 1000}m
+              {val / 100}m
             </span>
           )}
         </div>
@@ -1822,7 +1813,7 @@ export default function FrontViewEditor({
     return 'cursor-default';
   }, [isPanning, tool]);
 
-  if (!node.front?.isConfigured) {
+  if (!node.frontSetupDone) {
     return (
       <FrontSetupWizard 
         node={node} 
@@ -1957,12 +1948,12 @@ export default function FrontViewEditor({
                     
                     <div className="grid grid-cols-2 gap-4">
                       <div>
-                        <label className="text-[9px] font-black text-slate-600 uppercase tracking-widest block mb-1.5">Thickness (mm)</label>
+                        <label className="text-[9px] font-black text-slate-600 uppercase tracking-widest block mb-1.5">Thickness (cm)</label>
                         <input 
                           type="number"
-                          step="10"
-                          value={namingConfig.dividerThicknessMm}
-                          onChange={(e) => setNamingConfig(prev => ({ ...prev, dividerThicknessMm: Math.round(parseFloat(e.target.value) || 0) }))}
+                          step="1"
+                          value={namingConfig.dividerThickness}
+                          onChange={(e) => setNamingConfig(prev => ({ ...prev, dividerThickness: Math.round(parseFloat(e.target.value) || 0) }))}
                           className="w-full bg-slate-800 border-none rounded-xl px-3 py-2 text-xs font-black text-white outline-none focus:ring-1 focus:ring-sky-500"
                         />
                       </div>
@@ -2083,8 +2074,8 @@ export default function FrontViewEditor({
           className="absolute origin-top-left flex flex-col bg-slate-900 border-2 border-slate-800 shadow-2xl overflow-hidden"
           style={{
             transform: `translate(${pan.x}px, ${pan.y}px)`,
-            width: `${node.widthMm * totalScale}px`,
-            height: `${node.heightMm * totalScale}px`,
+            width: `${node.width * totalScale}px`,
+            height: `${node.height * totalScale}px`,
             borderTopLeftRadius: `${(node.style?.cornerRadiusTopLeft || 0) * totalScale}px`,
             borderTopRightRadius: `${(node.style?.cornerRadiusTopRight || 0) * totalScale}px`,
             borderBottomRightRadius: `${(node.style?.cornerRadiusBottomRight || 0) * totalScale}px`,
@@ -2098,7 +2089,7 @@ export default function FrontViewEditor({
             className="absolute inset-0 pointer-events-none opacity-5"
             style={{
               backgroundImage: 'radial-gradient(circle, #808080 1px, transparent 1px)',
-              backgroundSize: `${100 * totalScale}px ${100 * totalScale}px`
+              backgroundSize: `${10 * totalScale}px ${10 * totalScale}px`
             }}
           />
         </div>
