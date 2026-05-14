@@ -142,11 +142,11 @@ export default function WorkspaceDataDialog({
                 <SummaryItem label="Split Cells" value={exportSummary.splitNodesCount} />
                 <SummaryItem label="Dividers" value={exportSummary.dividersCount} />
                 <SummaryItem label="Frames" value={exportSummary.framesCount || 0} />
-                <SummaryItem label="Links" value={exportSummary.locationLinksCount} />
+                <SummaryItem label="Linked Visuals" value={exportSummary.locationLinksCount} />
                 <SummaryItem label="Visual Only" value={exportSummary.visualOnlyCount || 0} />
+                <SummaryItem label="Base Linked" value={exportSummary.baseSurfaceLinkedLocation ? 'Yes' : 'No'} color={exportSummary.baseSurfaceLinkedLocation ? 'text-emerald-400' : 'text-slate-500'} />
                 <SummaryItem label="Unresolved" value={exportSummary.unresolvedLocationLinksCount} color="text-amber-400" />
                 <SummaryItem label="Unit" value={exportSummary.unit} color="text-sky-400" />
-                <SummaryItem label="Status" value="Ready" color="text-emerald-400" />
                 <SummaryItem label="Version" value="v2" color="text-sky-400" />
               </div>
 

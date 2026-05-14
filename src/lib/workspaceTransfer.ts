@@ -68,6 +68,7 @@ export interface WorkspaceExportDataV2 {
     layoutId: string;
     locationId: string | null;
     visualizationType: string;
+    sourceVisualizationType?: string;
     label: string;
     x: number;
     y: number;
@@ -117,7 +118,9 @@ export interface WorkspaceExportDataV2 {
       frames: number;
       linkedLocations: number;
       visualOnlyObjects: number;
+      baseSurfaceLinkedLocation: boolean;
     };
+    baseSurfaceRootLocationId: string | null;
     dimensionSemantics: {
       top_down: {
         horizontalAxis: string;
@@ -151,13 +154,21 @@ export function serializeWorkspaceData(
   const floorNode = layoutVisuals.find(v => v.parentId === null) || layoutVisuals[0];
   const otherVisuals = layoutVisuals.filter(v => v.id !== floorNode.id);
   
-  // Find all location IDs referenced in these visuals
+  // Find all location IDs referenced in these visuals (excluding floor for specific counts)
   const referencedLocationIds = new Set<string>();
-  const collectLocationIds = (node: any) => {
-    if (node.locationId) referencedLocationIds.add(node.locationId);
+  const linkedVisualLocationIds = new Set<string>();
+
+  const collectLocationIds = (node: any, isFloor: boolean) => {
+    if (node.locationId) {
+      referencedLocationIds.add(node.locationId);
+      if (!isFloor) linkedVisualLocationIds.add(node.locationId);
+    }
     if (node.structure) {
       const traverseStructure = (sNode: any) => {
-        if (sNode.locationId) referencedLocationIds.add(sNode.locationId);
+        if (sNode.locationId) {
+          referencedLocationIds.add(sNode.locationId);
+          if (!isFloor) linkedVisualLocationIds.add(sNode.locationId);
+        }
         if (sNode.children) {
           sNode.children.forEach(traverseStructure);
         }
@@ -165,7 +176,7 @@ export function serializeWorkspaceData(
       traverseStructure(node.structure);
     }
   };
-  layoutVisuals.forEach(collectLocationIds);
+  layoutVisuals.forEach(v => collectLocationIds(v, v.id === floorNode.id));
   
   const referencedLocations = locations
     .filter(l => referencedLocationIds.has(l.id))
@@ -185,8 +196,9 @@ export function serializeWorkspaceData(
     frontCells: 0,
     dividers: 0,
     frames: 0,
-    linkedLocations: referencedLocationIds.size,
-    visualOnlyObjects: 0
+    linkedLocations: linkedVisualLocationIds.size,
+    visualOnlyObjects: 0,
+    baseSurfaceLinkedLocation: !!floorNode.locationId
   };
 
   const normalizeStructure = (sNode: any): any => {
@@ -292,6 +304,7 @@ export function serializeWorkspaceData(
     frontViews: frontViews,
     metadata: {
       counts,
+      baseSurfaceRootLocationId: floorNode.locationId,
       dimensionSemantics: {
         top_down: {
           horizontalAxis: "x",
@@ -315,13 +328,27 @@ export function serializeWorkspaceData(
 function mapVisualToV2(v: VisualNode, floorId: string): any {
   // If parentId pointed to floor, set parentVisualNodeId to null in export.
   const parentId = v.parentId === floorId ? null : v.parentId;
+
+  // Improve visualizationType detection
+  let visualizationType: string = v.type || 'rectangle';
+  const label = (v.label || '').toLowerCase();
+  
+  if (visualizationType === 'rectangle') {
+    if (label.includes('rack')) visualizationType = 'rack';
+    else if (label.includes('cabinet')) visualizationType = 'cabinet';
+    else if (label.includes('desk')) visualizationType = 'desk';
+  }
+
+  // Normalize viewType to snake_case
+  const viewType = v.viewMode === 'top-down' ? 'top_down' : v.viewMode;
   
   return {
     id: v.id,
     sourceId: v.id,
     layoutId: v.layoutId,
     locationId: v.locationId,
-    visualizationType: v.type,
+    visualizationType: visualizationType,
+    sourceVisualizationType: v.type,
     label: v.label,
     x: v.x,
     y: v.y,
@@ -331,7 +358,7 @@ function mapVisualToV2(v: VisualNode, floorId: string): any {
     height: v.height,
     depth: v.depth,
     style: { fill: v.color, ...(v.style || {}) },
-    viewType: v.viewMode,
+    viewType: viewType,
     parentVisualNodeId: parentId,
     supportsFrontView: v.supportsFrontView,
     supportsInteriorView: v.supportsInteriorView,
@@ -353,6 +380,7 @@ export interface WorkspaceSummary {
   baseSurfaceCount?: number;
   framesCount?: number;
   visualOnlyCount?: number;
+  baseSurfaceLinkedLocation?: boolean;
 }
 
 export function summarizeWorkspaceData(
@@ -372,7 +400,8 @@ export function summarizeWorkspaceData(
       unit: data.source.appUnit,
       baseSurfaceCount: counts.baseSurface,
       framesCount: counts.frames,
-      visualOnlyCount: counts.visualOnlyObjects
+      visualOnlyCount: counts.visualOnlyObjects,
+      baseSurfaceLinkedLocation: counts.baseSurfaceLinkedLocation
     };
   }
 
@@ -518,7 +547,7 @@ function prepareImportFromV2(data: WorkspaceExportDataV2, targetLayoutId: string
       id: newId,
       layoutId: targetLayoutId,
       locationId: v.locationId,
-      type: v.visualizationType as any,
+      type: (v.sourceVisualizationType || v.visualizationType) as any,
       label: v.label,
       x: v.x,
       y: v.y,
@@ -528,7 +557,7 @@ function prepareImportFromV2(data: WorkspaceExportDataV2, targetLayoutId: string
       height: v.height,
       depth: v.depth,
       color: v.style.fill,
-      viewMode: v.viewType as any,
+      viewMode: (v.viewType === 'top_down' ? 'top-down' : v.viewType) as any,
       parentId: newParentId,
       supportsFrontView: v.supportsFrontView,
       supportsInteriorView: v.supportsInteriorView,
