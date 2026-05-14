@@ -8,14 +8,16 @@ import {
   MOCK_LOCATIONS, 
   MOCK_LAYOUTS, 
   MOCK_VISUALS, 
-  MOCK_BRANCHES 
+  MOCK_BRANCHES,
+  MOCK_SPLIT_TREES
 } from './constants';
 import { 
   LogicalLocation, 
   Layout, 
   VisualNode, 
   Branch, 
-  ViewMode 
+  ViewType,
+  SplitTreeEntry 
 } from './types';
 import Navigation from './components/layout/Navigation';
 import LocationsPage from './components/locations/LocationsPage';
@@ -32,6 +34,7 @@ export default function App() {
   const [locations, setLocations] = useState<LogicalLocation[]>(MOCK_LOCATIONS);
   const [layouts, setLayouts] = useState<Layout[]>(MOCK_LAYOUTS);
   const [visuals, setVisuals] = useState<VisualNode[]>(MOCK_VISUALS);
+  const [splitTrees, setSplitTrees] = useState<SplitTreeEntry[]>(MOCK_SPLIT_TREES);
   const [activeLayoutId, setActiveLayoutId] = useState<string | null>(null);
 
   const activeLayout = useMemo(() => 
@@ -53,32 +56,21 @@ export default function App() {
     const newLayout: Layout = {
       id: layoutId,
       branchId: activeBranch.id,
+      rootLocationId: data.locationId || null,
       name: data.name || `Workspace ${layouts.length + 1}`,
       status: 'draft',
-      lastEdited: 'Just now'
-    };
-
-    // Create the root visual container (Room/Warehouse footprint)
-    const rootNode: VisualNode = {
-      id: `vis-root-${Date.now()}`,
-      layoutId: layoutId,
-      locationId: data.locationId || null,
-      type: 'zone', // Using zone as the base for the room footprint
-      label: data.name || 'Main footprint',
-      x: 0,
-      y: 0,
-      z: 0,
-      rotation: 0,
-      width: Math.round(data.width * 100), // convert meter to cm
-      height: Math.round((data.height || 4) * 100), 
-      depth: Math.round(data.depth * 100), 
-      color: 'rgba(14, 165, 233, 0.05)', // Sky 500 at low opacity
-      viewMode: ViewMode.TOP_DOWN,
-      parentId: null
+      lastEdited: 'Just now',
+      baseSurface: {
+        type: 'floor',
+        label: data.name || 'Main footprint',
+        widthMm: Math.round(data.width * 1000), // convert meter to mm
+        depthMm: Math.round(data.depth * 1000), 
+        style: { fill: '#0f172a' },
+        gridSizeMm: 1000
+      }
     };
 
     setLayouts([...layouts, newLayout]);
-    setVisuals([...visuals, rootNode]);
     setActiveLayoutId(newLayout.id);
     setCurrentPage('editor');
   };
@@ -132,6 +124,7 @@ export default function App() {
                 layouts={layouts} 
                 visuals={visuals} 
                 locations={locations}
+                splitTrees={splitTrees}
                 onOpenLayout={handleOpenEditor}
                 onCreateLayout={handleCreateLayout}
               />
@@ -150,8 +143,10 @@ export default function App() {
               <EditorPage 
                 layout={activeLayout} 
                 locations={locations}
-                visuals={visuals.filter(v => v.layoutId === activeLayout.id)}
+                visuals={visuals}
+                splitTrees={splitTrees}
                 setVisuals={setVisuals}
+                setSplitTrees={setSplitTrees}
                 setLocations={setLocations}
                 onBack={handleBackToWorkspaces}
               />
