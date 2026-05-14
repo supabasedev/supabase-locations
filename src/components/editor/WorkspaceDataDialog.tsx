@@ -137,13 +137,17 @@ export default function WorkspaceDataDialog({
             <div className="space-y-6">
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
                 <SummaryItem label="Objects" value={exportSummary.topViewObjectsCount} />
+                <SummaryItem label="Base Surface" value={exportSummary.baseSurfaceCount || 1} />
                 <SummaryItem label="Front Views" value={exportSummary.frontViewsCount} />
                 <SummaryItem label="Split Cells" value={exportSummary.splitNodesCount} />
                 <SummaryItem label="Dividers" value={exportSummary.dividersCount} />
+                <SummaryItem label="Frames" value={exportSummary.framesCount || 0} />
                 <SummaryItem label="Links" value={exportSummary.locationLinksCount} />
+                <SummaryItem label="Visual Only" value={exportSummary.visualOnlyCount || 0} />
                 <SummaryItem label="Unresolved" value={exportSummary.unresolvedLocationLinksCount} color="text-amber-400" />
                 <SummaryItem label="Unit" value={exportSummary.unit} color="text-sky-400" />
                 <SummaryItem label="Status" value="Ready" color="text-emerald-400" />
+                <SummaryItem label="Version" value="v2" color="text-sky-400" />
               </div>
 
               <div className="relative">
