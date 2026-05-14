@@ -24,6 +24,7 @@ import {
   MoveUpRight,
   CornerDownRight,
   FileText,
+  FileJson,
   Move,
   LayoutList,
   Columns,
@@ -82,6 +83,7 @@ const IconRenderer = ({ name, className, color }: { name: string, className?: st
 import { motion, AnimatePresence } from 'motion/react';
 import LocationModal from './LocationModal';
 import { InteractiveLocationMapPreview } from './InteractiveLocationMapPreview';
+import LocationExportDialog from './LocationExportDialog';
 
 interface LocationsPageProps {
   locations: LogicalLocation[];
@@ -121,6 +123,7 @@ export default function LocationsPage({
   const [childListDensity, setChildListDensity] = useState<'COMFORTABLE' | 'COMPACT'>('COMFORTABLE');
   
   const [previewLayoutId, setPreviewLayoutId] = useState<string | null>(null);
+  const [isExportDialogOpen, setIsExportDialogOpen] = useState(false);
 
   const selectedLocation = locations.find(l => l.id === selectedLocationId) || null;
 
@@ -529,6 +532,13 @@ export default function LocationsPage({
                        >
                          {isCompactMode ? <LayoutList className="w-3.5 h-3.5" /> : <Columns className="w-3.5 h-3.5" />}
                          {isCompactMode ? 'Standard View' : 'Compact View'}
+                       </button>
+                       <div className="border-t border-slate-800 my-1" />
+                       <button 
+                         onClick={() => { setIsExportDialogOpen(true); setIsTreeActionsOpen(false); }}
+                         className="w-full px-4 py-2 text-left text-[10px] font-bold text-sky-400 hover:text-white hover:bg-sky-500/10 flex items-center gap-2"
+                       >
+                         <FileJson className="w-3.5 h-3.5" /> Export Location Data
                        </button>
                     </motion.div>
                   </>
@@ -1238,6 +1248,16 @@ export default function LocationsPage({
                 </div>
             </motion.div>
         </div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {isExportDialogOpen && (
+          <LocationExportDialog 
+            locations={locations}
+            layouts={layouts}
+            onClose={() => setIsExportDialogOpen(false)}
+          />
         )}
       </AnimatePresence>
     </div>

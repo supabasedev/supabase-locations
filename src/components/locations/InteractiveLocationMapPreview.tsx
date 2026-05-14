@@ -62,7 +62,13 @@ export function InteractiveLocationMapPreview({
 }: InteractiveLocationMapPreviewProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedLocationId, setSelectedLocationId] = useState<string | null>(initialLocationId || null);
+  const [selectedVisualNodeId, setSelectedVisualNodeId] = useState<string | null>(null);
   const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
+
+  // When location changes, clear direct visual selection
+  useEffect(() => {
+    if (selectedLocationId) setSelectedVisualNodeId(null);
+  }, [selectedLocationId]);
 
   // Build mapping index
   const index = useMemo(() => buildLocationMappingIndex(visualNodes, locations), [visualNodes, locations]);
@@ -178,9 +184,21 @@ export function InteractiveLocationMapPreview({
                     if (result.type === 'location') {
                       setSelectedLocationId(result.id);
                     } else if (result.type === 'visual_node') {
-                      if (result.locationId) setSelectedLocationId(result.locationId);
+                      if (result.locationId) {
+                        setSelectedLocationId(result.locationId);
+                      } else {
+                        setSelectedLocationId(null);
+                        setSelectedVisualNodeId(result.id);
+                      }
                     } else if (result.type === 'structure_cell') {
-                      if (result.locationId) setSelectedLocationId(result.locationId);
+                      if (result.locationId) {
+                        setSelectedLocationId(result.locationId);
+                      } else {
+                        setSelectedLocationId(null);
+                        // For cells, we might want to track visualNodeId + structurePath
+                        // but for now let's just select the parent visual
+                        setSelectedVisualNodeId(result.parentVisualNodeId);
+                      }
                     }
                   }}
                   className={cn(
@@ -221,9 +239,14 @@ export function InteractiveLocationMapPreview({
           <div className="flex-1 relative overflow-hidden">
             <PreviewTopDownMap 
               visuals={visualNodes}
-              selectedNodeId={activeVisualNodeId}
+              selectedNodeId={activeVisualNodeId || selectedVisualNodeId}
               onSelectNode={(node) => {
-                if (node.locationId) setSelectedLocationId(node.locationId);
+                if (node.locationId) {
+                  setSelectedLocationId(node.locationId);
+                } else {
+                  setSelectedLocationId(null);
+                  setSelectedVisualNodeId(node.id);
+                }
               }}
               hoveredNodeId={hoveredNodeId}
               onHoverNode={setHoveredNodeId}
@@ -265,10 +288,16 @@ export function InteractiveLocationMapPreview({
                 </div>
                 <div className="flex-1 overflow-hidden p-6 bg-slate-950/50 relative">
                   <PreviewFrontView 
-                    node={visualNodes.find(n => n.id === activeVisualNodeId)!}
+                    node={visualNodes.find(n => n.id === activeVisualNodeId || n.id === selectedVisualNodeId)!}
                     selectedStructureNodeId={activeStructureNodeId}
                     onSelectCell={(cell) => {
-                      if (cell.locationId) setSelectedLocationId(cell.locationId);
+                      if (cell.locationId) {
+                        setSelectedLocationId(cell.locationId);
+                      } else {
+                        // Just highlight the cell
+                        setSelectedLocationId(null);
+                        setSelectedVisualNodeId(activeVisualNodeId || selectedVisualNodeId);
+                      }
                     }}
                   />
                 </div>
@@ -318,12 +347,32 @@ export function InteractiveLocationMapPreview({
                     </span>
                   </div>
                   
-                  <p className="text-xs text-slate-400 leading-relaxed">
-                    {resolution.status === 'top_down' && "Placed directly on the warehouse floor map."}
-                    {resolution.status === 'front_cell' && `Located inside ${resolution.parentVisualNode.label} structure.`}
-                    {resolution.status === 'unmapped' && "This location exists in the system but has no visual representation on this workspace."}
-                    {resolution.status === 'duplicate' && "Found multiple visual representations for this location."}
-                  </p>
+                  <div className="text-xs text-slate-400 leading-relaxed space-y-2">
+                    {resolution.status === 'top_down' && <p>Placed directly on the warehouse floor map.</p>}
+                    {resolution.status === 'front_cell' && <p>Located inside <strong>{resolution.parentVisualNode.label}</strong> structure.</p>}
+                    {resolution.status === 'unmapped' && (
+                      <p>This location exists in the system but has no visual representation on this workspace.</p>
+                    )}
+                    {resolution.status === 'duplicate' && (
+                      <div className="space-y-1">
+                        <p className="text-amber-400/80 font-medium">Warning: Duplicate Mapping</p>
+                        <p>Found {resolution.matches.length} visual representations:</p>
+                        <ul className="list-disc list-inside mt-1 font-mono text-[10px]">
+                          {resolution.matches.map((m, i) => (
+                            <li key={i}>
+                              {m.type === 'top_down' ? m.visualNode.label : `${m.parentVisualNode.label} > ${m.structureNode.displayLabel || m.structureNode.label}`}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                    {index.unresolvedReferences.includes(selectedLocationId!) && (
+                      <div className="flex items-start gap-2 mt-2 p-2 bg-rose-500/10 border border-rose-500/20 rounded text-rose-400">
+                        <AlertTriangle className="w-3 h-3 shrink-0 mt-0.5" />
+                        <p>Broken Reference: This location ID was not found in the global location registry.</p>
+                      </div>
+                    )}
+                  </div>
                 </div>
 
                 {/* Actions Placeholder */}
@@ -332,6 +381,28 @@ export function InteractiveLocationMapPreview({
                     <span>View Inventory</span>
                     <ChevronRight className="w-3 h-3 opacity-50" />
                   </button>
+                </div>
+              </div>
+            ) : selectedVisualNodeId ? (
+              <div className="space-y-6">
+                 {/* Visual Only Info */}
+                 <div>
+                  <div className="text-2xl font-bold tracking-tight text-white mb-1">
+                    {visualNodes.find(v => v.id === selectedVisualNodeId)?.label || 'Unknown'}
+                  </div>
+                  <div className="text-sm text-slate-400">
+                    Physical Object / Visual Only
+                  </div>
+                </div>
+
+                <div className="p-4 rounded-xl border bg-slate-800/50 border-slate-700">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Info className="w-4 h-4 text-slate-500" />
+                    <span className="text-xs font-bold uppercase tracking-wide">Information</span>
+                  </div>
+                  <p className="text-xs text-slate-400 leading-relaxed">
+                    This is a visual-only object. It has no operational logical location assigned to it.
+                  </p>
                 </div>
               </div>
             ) : (
