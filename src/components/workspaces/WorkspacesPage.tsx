@@ -11,11 +11,13 @@ import {
   FileText,
   AlertCircle,
   CheckCircle2,
-  ExternalLink
+  ExternalLink,
+  Activity
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import BlueprintSetupWizard, { WizardData } from './BlueprintSetupWizard';
 import { InteractiveLocationMapPreview } from '../locations/InteractiveLocationMapPreview';
+import WorkspaceHealthReportDialog from './WorkspaceHealthReportDialog';
 
 interface WorkspacesPageProps {
   layouts: Layout[];
@@ -28,8 +30,10 @@ interface WorkspacesPageProps {
 export default function WorkspacesPage({ layouts, visuals, locations, onOpenLayout, onCreateLayout }: WorkspacesPageProps) {
   const [isWizardOpen, setIsWizardOpen] = React.useState(false);
   const [previewLayoutId, setPreviewLayoutId] = React.useState<string | null>(null);
+  const [healthReportLayoutId, setHealthReportLayoutId] = React.useState<string | null>(null);
 
   const previewLayout = layouts.find(l => l.id === previewLayoutId);
+  const healthLayout = layouts.find(l => l.id === healthReportLayoutId);
 
   return (
     <div className="flex-1 overflow-y-auto bg-surface p-10 scrollbar-thin scrollbar-thumb-slate-700">
@@ -62,6 +66,18 @@ export default function WorkspacesPage({ layouts, visuals, locations, onOpenLayo
         )}
       </AnimatePresence>
 
+      <AnimatePresence>
+        {healthReportLayoutId && healthLayout && (
+          <WorkspaceHealthReportDialog 
+            layout={healthLayout}
+            visuals={visuals.filter(v => v.layoutId === healthReportLayoutId)}
+            locations={locations}
+            scopeLocationId={undefined}
+            onClose={() => setHealthReportLayoutId(null)}
+          />
+        )}
+      </AnimatePresence>
+
       <div className="max-w-6xl mx-auto space-y-10">
         <div className="flex items-center justify-between">
           <div>
@@ -85,6 +101,7 @@ export default function WorkspacesPage({ layouts, visuals, locations, onOpenLayo
               visuals={visuals.filter(v => v.layoutId === layout.id)}
               onOpen={() => onOpenLayout(layout.id)}
               onPreview={() => setPreviewLayoutId(layout.id)}
+              onAnalyze={() => setHealthReportLayoutId(layout.id)}
               index={index}
             />
           ))}
@@ -114,10 +131,12 @@ interface LayoutCardProps {
   visuals: VisualNode[];
   onOpen: () => void;
   onPreview: () => void;
+  onAnalyze: () => void;
   index: number;
 }
 
-function LayoutCard({ layout, visuals, onOpen, onPreview, index }: LayoutCardProps) {
+function LayoutCard({ layout, visuals, onOpen, onPreview, onAnalyze, index }: LayoutCardProps) {
+  const [isMenuOpen, setIsMenuOpen] = React.useState(false);
   const mappedCount = visuals.filter(v => v.locationId !== null).length;
   const unassignedCount = visuals.filter(v => v.locationId === null).length;
 
@@ -145,9 +164,48 @@ function LayoutCard({ layout, visuals, onOpen, onPreview, index }: LayoutCardPro
             <h3 className="text-lg font-bold text-white group-hover:text-sky-400 transition-colors uppercase tracking-tight">{layout.name}</h3>
             <p className="text-slate-500 text-xs mt-1 italic">Last edited {layout.lastEdited}</p>
           </div>
-          <button className="p-2 text-slate-500 hover:text-white transition-colors">
-            <MoreVertical className="w-5 h-5" />
-          </button>
+          <div className="relative">
+            <button 
+              onClick={(e) => { e.stopPropagation(); setIsMenuOpen(!isMenuOpen); }}
+              className="p-2 text-slate-500 hover:text-white transition-colors"
+            >
+              <MoreVertical className="w-5 h-5" />
+            </button>
+            <AnimatePresence>
+              {isMenuOpen && (
+                <>
+                  <div className="fixed inset-0 z-40" onClick={() => setIsMenuOpen(false)} />
+                  <motion.div 
+                    initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                    className="absolute right-0 top-full mt-2 w-48 bg-slate-800 border border-slate-700 rounded-xl shadow-2xl z-50 py-2 overflow-hidden"
+                  >
+                    <button 
+                      onClick={(e) => { e.stopPropagation(); onAnalyze(); setIsMenuOpen(false); }}
+                      className="w-full px-4 py-2 text-left text-xs font-bold text-emerald-400 hover:bg-emerald-500/10 flex items-center gap-2 transition-colors"
+                    >
+                      <Activity className="w-4 h-4" />
+                      Mapping Health
+                    </button>
+                    <button 
+                      className="w-full px-4 py-2 text-left text-xs font-bold text-slate-400 hover:bg-slate-700 flex items-center gap-2 transition-colors cursor-not-allowed opacity-50"
+                    >
+                      <Copy className="w-4 h-4" />
+                      Duplicate Layout
+                    </button>
+                    <div className="border-t border-slate-700 my-1" />
+                    <button 
+                      className="w-full px-4 py-2 text-left text-xs font-bold text-rose-400 hover:bg-rose-500/10 flex items-center gap-2 transition-colors cursor-not-allowed opacity-50"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                      Delete Layout
+                    </button>
+                  </motion.div>
+                </>
+              )}
+            </AnimatePresence>
+          </div>
         </div>
 
         <div className="grid grid-cols-2 gap-4">

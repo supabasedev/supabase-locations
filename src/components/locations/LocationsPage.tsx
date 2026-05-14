@@ -62,7 +62,8 @@ import {
   ShieldCheck,
   Triangle,
   Package,
-  Circle
+  Circle,
+  Activity
 } from 'lucide-react';
 
 import { LOCATION_CATEGORIES, LocationCategoryDefinition } from '../../constants/locationCategories';
@@ -84,6 +85,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import LocationModal from './LocationModal';
 import { InteractiveLocationMapPreview } from './InteractiveLocationMapPreview';
 import LocationExportDialog from './LocationExportDialog';
+import WorkspaceHealthReportDialog from '../workspaces/WorkspaceHealthReportDialog';
 
 interface LocationsPageProps {
   locations: LogicalLocation[];
@@ -124,6 +126,7 @@ export default function LocationsPage({
   
   const [previewLayoutId, setPreviewLayoutId] = useState<string | null>(null);
   const [isExportDialogOpen, setIsExportDialogOpen] = useState(false);
+  const [healthReportLayoutId, setHealthReportLayoutId] = useState<string | null>(null);
 
   const selectedLocation = locations.find(l => l.id === selectedLocationId) || null;
 
@@ -399,14 +402,43 @@ export default function LocationsPage({
   const handleLocateOnMap = () => {
     if (!selectedLocation) return;
     // Find layout where this location is mapped
+    const targetLayoutId = findRelevantLayoutId(selectedLocation.id);
+    setPreviewLayoutId(targetLayoutId);
+  };
+
+  const handleAnalyzeMapping = () => {
+    if (!selectedLocation) return;
+    const targetLayoutId = findRelevantLayoutId(selectedLocation.id);
+    setHealthReportLayoutId(targetLayoutId);
+  };
+
+  const findRelevantLayoutId = (locId: string): string | null => {
+    // Find layout where this location is mapped
     const layoutWithMapping = layouts.find(layout => 
       visuals.some(v => v.layoutId === layout.id && (
-        v.locationId === selectedLocation.id || 
-        (v.structure && hasLocationIdInStructure(v.structure, selectedLocation.id))
+        v.locationId === locId || 
+        (v.structure && hasLocationIdInStructure(v.structure, locId))
       ))
     );
     
-    setPreviewLayoutId(layoutWithMapping?.id || layouts[0]?.id || null);
+    if (layoutWithMapping) return layoutWithMapping.id;
+
+    // If no direct mapping, try to find mapping for any ancestor
+    const path = getLocationPath(locId);
+    for (let i = path.length - 2; i >= 0; i--) {
+       const ancestor = path[i];
+       const ancestorLayout = layouts.find(layout => 
+         visuals.some(v => v.layoutId === layout.id && (
+           v.locationId === ancestor.id || 
+           (v.structure && hasLocationIdInStructure(v.structure, ancestor.id))
+         ))
+       );
+       if (ancestorLayout) {
+          return ancestorLayout.id;
+       }
+    }
+
+    return layouts[0]?.id || null;
   };
 
   function hasLocationIdInStructure(root: any, locId: string): boolean {
@@ -535,6 +567,20 @@ export default function LocationsPage({
                        </button>
                        <div className="border-t border-slate-800 my-1" />
                        <button 
+                         onClick={() => { 
+                           if (selectedLocation) {
+                             handleAnalyzeMapping();
+                           } else if (layouts.length > 0) {
+                             setHealthReportLayoutId(layouts[0].id);
+                           }
+                           setIsTreeActionsOpen(false); 
+                         }}
+                         className="w-full px-4 py-2 text-left text-[10px] font-bold text-emerald-400 hover:text-white hover:bg-emerald-500/10 flex items-center gap-2"
+                       >
+                         <Activity className="w-3.5 h-3.5" /> Analyze Workspace Mapping
+                       </button>
+                       <div className="border-t border-slate-800 my-1" />
+                       <button 
                          onClick={() => { setIsExportDialogOpen(true); setIsTreeActionsOpen(false); }}
                          className="w-full px-4 py-2 text-left text-[10px] font-bold text-sky-400 hover:text-white hover:bg-sky-500/10 flex items-center gap-2"
                        >
@@ -654,6 +700,7 @@ export default function LocationsPage({
                        <RibbonAction icon={<Plus className="w-3 h-3" />} onClick={() => setIsAddModalOpen(true)} title="Quick Add Child" />
                        <RibbonAction icon={<Copy className="w-3 h-3" />} onClick={() => console.log('Duplicate')} title="Duplicate" />
                        <RibbonAction icon={<SearchIcon className="w-3 h-3" />} onClick={handleLocateOnMap} title="Locate on Map" />
+                       <RibbonAction icon={<Activity className="w-3 h-3" />} onClick={handleAnalyzeMapping} title="Analyze Mapping Health" />
                        <RibbonAction icon={<MoveUpRight className="w-3 h-3" />} onClick={() => { setLocationToMove(selectedLocation.id); setIsMoveModalOpen(true); }} title="Move Location" />
                        <div className="w-px h-4 bg-slate-800 mx-1" />
                        <RibbonAction icon={<Trash2 className="w-3 h-3" />} onClick={() => console.log('Archive')} title="Archive" variant="danger" />
@@ -1257,6 +1304,18 @@ export default function LocationsPage({
             locations={locations}
             layouts={layouts}
             onClose={() => setIsExportDialogOpen(false)}
+          />
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {healthReportLayoutId && layouts.find(l => l.id === healthReportLayoutId) && (
+          <WorkspaceHealthReportDialog 
+            layout={layouts.find(l => l.id === healthReportLayoutId)!}
+            visuals={visuals.filter(v => v.layoutId === healthReportLayoutId)}
+            locations={locations}
+            scopeLocationId={selectedLocationId || undefined}
+            onClose={() => setHealthReportLayoutId(null)}
           />
         )}
       </AnimatePresence>
