@@ -29,6 +29,7 @@ interface ToolbarProps {
   onBack: () => void;
   setViewMode: (mode: ViewMode) => void;
   onFitScreen: () => void;
+  onOpenData: () => void;
 }
 
 export default function EditorToolbar({
@@ -48,7 +49,8 @@ export default function EditorToolbar({
   isFrontDisabled,
   onBack,
   setViewMode,
-  onFitScreen
+  onFitScreen,
+  onOpenData
 }: ToolbarProps) {
   return (
     <div className="h-14 bg-slate-900 border-b border-slate-700 flex items-center justify-between px-4 z-40">
@@ -85,6 +87,13 @@ export default function EditorToolbar({
              label="Front"
            />
         </div>
+
+        <button 
+          onClick={onOpenData}
+          className="ml-4 px-3 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all border border-slate-700"
+        >
+          Data
+        </button>
       </div>
 
       <div className="flex items-center gap-3">

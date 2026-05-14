@@ -19,6 +19,7 @@ import ToolRibbon from './ToolRibbon';
 import EditorCanvas from './EditorCanvas';
 import FrontViewEditor from './FrontViewEditor';
 import AddObjectModal from './AddObjectModal';
+import WorkspaceDataDialog from './WorkspaceDataDialog';
 import { motion, AnimatePresence } from 'motion/react';
 
 interface EditorPageProps {
@@ -46,6 +47,7 @@ export default function EditorPage({
   const [selectedFrontCellIds, setSelectedFrontCellIds] = useState<string[]>([]);
   const [selectedFrontDividerIds, setSelectedFrontDividerIds] = useState<string[]>([]);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [isDataDialogOpen, setIsDataDialogOpen] = useState(false);
   const [zoomLevel, setZoomLevel] = useState(1);
   const [showGrid, setShowGrid] = useState(true);
   const [snapToGrid, setSnapToGrid] = useState(true);
@@ -69,6 +71,14 @@ export default function EditorPage({
     setFitTrigger(prev => prev + 1);
   };
 
+  const handleImport = (newVisuals: VisualNode[]) => {
+    // Clear existing visuals for this layout and add new ones
+    setVisuals(prev => [
+      ...prev.filter(v => v.layoutId !== layout.id),
+      ...newVisuals
+    ]);
+  };
+  
   const selectedNodeId = selectedNodeIds[0] || null;
   
   const isFrontDisabled = useMemo(() => {
@@ -245,6 +255,7 @@ export default function EditorPage({
         isFrontDisabled={isFrontDisabled}
         onBack={onBack}
         onFitScreen={handleFitScreen}
+        onOpenData={() => setIsDataDialogOpen(true)}
       />
 
       <div className="flex-1 flex overflow-hidden">
@@ -443,6 +454,15 @@ export default function EditorPage({
             onClose={() => setIsAddModalOpen(false)} 
             onSubmit={handleAddObject}
             locations={locations}
+          />
+        )}
+        {isDataDialogOpen && (
+          <WorkspaceDataDialog 
+            layout={layout}
+            visuals={layoutVisuals}
+            locations={locations}
+            onImport={handleImport}
+            onClose={() => setIsDataDialogOpen(false)}
           />
         )}
       </AnimatePresence>
