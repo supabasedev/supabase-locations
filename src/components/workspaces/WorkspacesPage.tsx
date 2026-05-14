@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import BlueprintSetupWizard, { WizardData } from './BlueprintSetupWizard';
+import { InteractiveLocationMapPreview } from '../locations/InteractiveLocationMapPreview';
 
 interface WorkspacesPageProps {
   layouts: Layout[];
@@ -26,6 +27,9 @@ interface WorkspacesPageProps {
 
 export default function WorkspacesPage({ layouts, visuals, locations, onOpenLayout, onCreateLayout }: WorkspacesPageProps) {
   const [isWizardOpen, setIsWizardOpen] = React.useState(false);
+  const [previewLayoutId, setPreviewLayoutId] = React.useState<string | null>(null);
+
+  const previewLayout = layouts.find(l => l.id === previewLayoutId);
 
   return (
     <div className="flex-1 overflow-y-auto bg-surface p-10 scrollbar-thin scrollbar-thumb-slate-700">
@@ -38,6 +42,22 @@ export default function WorkspacesPage({ layouts, visuals, locations, onOpenLayo
               setIsWizardOpen(false);
             }}
             locations={locations}
+          />
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {previewLayoutId && previewLayout && (
+          <InteractiveLocationMapPreview 
+            layout={previewLayout}
+            visualNodes={visuals.filter(v => v.layoutId === previewLayoutId)}
+            locations={locations}
+            onClose={() => setPreviewLayoutId(null)}
+            canEdit={true}
+            onOpenEditor={() => {
+              onOpenLayout(previewLayoutId);
+              setPreviewLayoutId(null);
+            }}
           />
         )}
       </AnimatePresence>
@@ -64,6 +84,7 @@ export default function WorkspacesPage({ layouts, visuals, locations, onOpenLayo
               layout={layout} 
               visuals={visuals.filter(v => v.layoutId === layout.id)}
               onOpen={() => onOpenLayout(layout.id)}
+              onPreview={() => setPreviewLayoutId(layout.id)}
               index={index}
             />
           ))}
@@ -92,10 +113,11 @@ interface LayoutCardProps {
   layout: Layout;
   visuals: VisualNode[];
   onOpen: () => void;
+  onPreview: () => void;
   index: number;
 }
 
-function LayoutCard({ layout, visuals, onOpen, index }: LayoutCardProps) {
+function LayoutCard({ layout, visuals, onOpen, onPreview, index }: LayoutCardProps) {
   const mappedCount = visuals.filter(v => v.locationId !== null).length;
   const unassignedCount = visuals.filter(v => v.locationId === null).length;
 
@@ -145,10 +167,20 @@ function LayoutCard({ layout, visuals, onOpen, index }: LayoutCardProps) {
           </div>
         </div>
 
-        <div className="pt-2">
-          <button className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-slate-800 hover:bg-sky-500 hover:text-slate-900 border border-slate-700 group-hover:border-sky-500 transition-all font-bold text-sm text-slate-300">
+        <div className="pt-2 grid grid-cols-2 gap-2">
+          <button 
+            onClick={(e) => { e.stopPropagation(); onOpen(); }}
+            className="flex items-center justify-center gap-2 py-3 rounded-xl bg-slate-800 hover:bg-sky-500 hover:text-slate-900 border border-slate-700 group-hover:border-sky-500 transition-all font-bold text-xs text-slate-300"
+          >
             <ExternalLink className="w-4 h-4" />
-            Open Workspace
+            Editor
+          </button>
+          <button 
+            onClick={(e) => { e.stopPropagation(); onPreview(); }}
+            className="flex items-center justify-center gap-2 py-3 rounded-xl bg-slate-800 hover:bg-emerald-500 hover:text-slate-900 border border-slate-700 group-hover:border-emerald-500 transition-all font-bold text-xs text-slate-300"
+          >
+            <MapIcon className="w-4 h-4" />
+            Preview
           </button>
         </div>
       </div>

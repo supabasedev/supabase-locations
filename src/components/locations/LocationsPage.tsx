@@ -81,6 +81,7 @@ const IconRenderer = ({ name, className, color }: { name: string, className?: st
 };
 import { motion, AnimatePresence } from 'motion/react';
 import LocationModal from './LocationModal';
+import { InteractiveLocationMapPreview } from './InteractiveLocationMapPreview';
 
 interface LocationsPageProps {
   locations: LogicalLocation[];
@@ -118,6 +119,8 @@ export default function LocationsPage({
   const [locationToMove, setLocationToMove] = useState<string | null>(null);
   const [moveTargetId, setMoveTargetId] = useState<string | 'ROOT'>('ROOT');
   const [childListDensity, setChildListDensity] = useState<'COMFORTABLE' | 'COMPACT'>('COMFORTABLE');
+  
+  const [previewLayoutId, setPreviewLayoutId] = useState<string | null>(null);
 
   const selectedLocation = locations.find(l => l.id === selectedLocationId) || null;
 
@@ -390,8 +393,46 @@ export default function LocationsPage({
 
   const rootLocations = locations.filter(l => !l.parentId).sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
 
+  const handleLocateOnMap = () => {
+    if (!selectedLocation) return;
+    // Find layout where this location is mapped
+    const layoutWithMapping = layouts.find(layout => 
+      visuals.some(v => v.layoutId === layout.id && (
+        v.locationId === selectedLocation.id || 
+        (v.structure && hasLocationIdInStructure(v.structure, selectedLocation.id))
+      ))
+    );
+    
+    setPreviewLayoutId(layoutWithMapping?.id || layouts[0]?.id || null);
+  };
+
+  function hasLocationIdInStructure(root: any, locId: string): boolean {
+    if (root.locationId === locId) return true;
+    if (root.children) {
+      return root.children.some((c: any) => hasLocationIdInStructure(c, locId));
+    }
+    return false;
+  }
+
   return (
     <div className="h-full flex px-6 py-6 gap-6 bg-slate-950 font-sans">
+      <AnimatePresence>
+        {previewLayoutId && (
+          <InteractiveLocationMapPreview 
+            layout={layouts.find(l => l.id === previewLayoutId)!}
+            visualNodes={visuals.filter(v => v.layoutId === previewLayoutId)}
+            locations={locations}
+            initialLocationId={selectedLocationId || undefined}
+            onClose={() => setPreviewLayoutId(null)}
+            canEdit={true}
+            onOpenEditor={() => {
+              onNavigateToWorkspace(previewLayoutId);
+              setPreviewLayoutId(null);
+            }}
+          />
+        )}
+      </AnimatePresence>
+
       {/* Sidebar: Location Tree */}
       <div className="w-[360px] bg-slate-900 border border-slate-800 rounded-3xl flex flex-col overflow-hidden shadow-2xl relative z-10 shrink-0">
         <div className="p-4 border-b border-slate-800 bg-slate-900/30 backdrop-blur">
@@ -602,7 +643,7 @@ export default function LocationsPage({
                     <div className="flex items-center gap-1.5 bg-slate-950/30 p-1 rounded-xl border border-slate-800/40">
                        <RibbonAction icon={<Plus className="w-3 h-3" />} onClick={() => setIsAddModalOpen(true)} title="Quick Add Child" />
                        <RibbonAction icon={<Copy className="w-3 h-3" />} onClick={() => console.log('Duplicate')} title="Duplicate" />
-                       <RibbonAction icon={<SearchIcon className="w-3 h-3" />} onClick={() => console.log('Locate')} title="Locate on Map" />
+                       <RibbonAction icon={<SearchIcon className="w-3 h-3" />} onClick={handleLocateOnMap} title="Locate on Map" />
                        <RibbonAction icon={<MoveUpRight className="w-3 h-3" />} onClick={() => { setLocationToMove(selectedLocation.id); setIsMoveModalOpen(true); }} title="Move Location" />
                        <div className="w-px h-4 bg-slate-800 mx-1" />
                        <RibbonAction icon={<Trash2 className="w-3 h-3" />} onClick={() => console.log('Archive')} title="Archive" variant="danger" />
