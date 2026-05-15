@@ -21,7 +21,7 @@ export interface WorkspaceExportDataV1 {
     code: string;
     name: string;
     parentId: string | null;
-    locationType: string;
+    role: string;
   }[];
 }
 
@@ -185,7 +185,7 @@ export function serializeWorkspaceData(
       code: l.code,
       name: l.name,
       parentId: l.parentId,
-      locationCategory: l.locationType
+      locationCategory: l.role
     }));
 
   const frontViews: WorkspaceExportDataV2['frontViews'] = [];

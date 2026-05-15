@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { LogicalLocation, LocationType } from '../types';
+import { LogicalLocation, LocationRole } from '../types';
 
 export interface LocationExportSchema {
   schemaVersion: string;
@@ -26,10 +26,9 @@ export interface LocationExportSchema {
       receivableLocations: number;
       withQrCode: number;
       withBarcode: number;
-      withPhysicalMetadata: number;
       withWarnings: number;
     };
-    byType: Record<string, number>;
+    byRole: Record<string, number>;
     byStatus: Record<string, number>;
     maxDepth: number;
   };
@@ -38,7 +37,6 @@ export interface LocationExportSchema {
     duplicateCodes: string[];
     circularReferences: string[];
     orphanedLocations: string[];
-    invalidStockFlags: string[];
     parentAllowsStockWithChildren: string[];
     locationsWithoutCodes: string[];
     locationsWithoutNames: string[];
@@ -56,16 +54,18 @@ export interface ExportTreeNode {
   id: string;
   code: string;
   name: string;
-  path: string;
-  namePath: string;
+  pathCode: string;
+  pathName: string;
   depth: number;
   parentId: string | null;
-  locationType: LocationType;
+  role: LocationRole;
   status: string;
-  allowsStock: boolean;
-  isReceivable: boolean;
-  isPickable: boolean;
-  isVirtual: boolean;
+  capabilities: {
+    canStoreInventory: boolean;
+    canReceive: boolean;
+    canPick: boolean;
+    isVirtual: boolean;
+  };
   children: ExportTreeNode[];
 }
 
@@ -78,65 +78,49 @@ export function generateLocationExport(
   // Helpers
   const getLocationById = (id: string) => locations.find(l => l.id === id);
   
-  const getAncestors = (loc: LogicalLocation): LogicalLocation[] => {
-    const ancestors: LogicalLocation[] = [];
-    let currentId = loc.parentId;
-    const visited = new Set<string>();
-    
-    while (currentId && !visited.has(currentId)) {
-      const parent = getLocationById(currentId);
-      if (!parent) break;
-      ancestors.unshift(parent);
-      visited.add(currentId);
-      currentId = parent.parentId;
-    }
-    return ancestors;
-  };
-
-  const getCodePath = (loc: LogicalLocation) => {
-    const ancestors = getAncestors(loc);
-    return [...ancestors.map(a => a.code), loc.code].join('/');
-  };
-
-  const getNamePath = (loc: LogicalLocation) => {
-    const ancestors = getAncestors(loc);
-    return [...ancestors.map(a => a.name), loc.name].join(' / ');
-  };
-
   const isLeaf = (locId: string) => !locations.some(l => l.parentId === locId);
 
   // Map locations to include extra inspection info
-  const locationsWithPaths = locations.map(l => {
-    const ancestors = getAncestors(l);
+  const locationsWithDepth = locations.map(l => {
+    let depth = 0;
+    let current = l;
+    const visited = new Set<string>();
+    while (current.parentId && !visited.has(current.parentId)) {
+        const parent = getLocationById(current.parentId);
+        if (!parent) break;
+        visited.add(current.parentId);
+        current = parent;
+        depth++;
+    }
     return {
       ...l,
-      codePath: getCodePath(l),
-      namePath: getNamePath(l),
-      ancestorIds: ancestors.map(a => a.id),
-      depth: ancestors.length,
-      isLeaf: isLeaf(l.id)
+      depth,
+      isLeaf: isLeaf(l.id),
+      ancestorIds: Array.from(visited)
     };
   });
 
   // Build Tree
-  const buildTree = (parentId: string | null, depth: number = 0): ExportTreeNode[] => {
-    return locationsWithPaths
+  const buildTree = (parentId: string | null): ExportTreeNode[] => {
+    return locationsWithDepth
       .filter(l => l.parentId === parentId)
       .map(l => ({
         id: l.id,
         code: l.code,
         name: l.name,
-        path: l.codePath,
-        namePath: l.namePath,
+        pathCode: l.pathCode,
+        pathName: l.pathName,
         depth: l.depth,
         parentId: l.parentId,
-        locationType: l.locationType,
+        role: l.role,
         status: l.status,
-        allowsStock: l.allowsStock,
-        isReceivable: l.isReceivable,
-        isPickable: l.isPickable,
-        isVirtual: l.isVirtual,
-        children: buildTree(l.id, depth + 1)
+        capabilities: {
+          canStoreInventory: l.capabilities.canStoreInventory,
+          canReceive: l.capabilities.canReceive,
+          canPick: l.capabilities.canPick,
+          isVirtual: l.capabilities.isVirtual,
+        },
+        children: buildTree(l.id)
       }));
   };
 
@@ -146,23 +130,22 @@ export function generateLocationExport(
   const counts = {
     totalLocations: locations.length,
     rootLocations: locations.filter(l => !l.parentId).length,
-    leafLocations: locationsWithPaths.filter(l => l.isLeaf).length,
-    storageCapableLocations: locations.filter(l => l.allowsStock).length,
-    virtualLocations: locations.filter(l => l.isVirtual).length,
-    pickableLocations: locations.filter(l => l.isPickable).length,
-    receivableLocations: locations.filter(l => l.isReceivable).length,
-    withQrCode: locations.filter(l => !!l.qrCodeValue).length,
-    withBarcode: locations.filter(l => !!l.barcodeValue).length,
-    withPhysicalMetadata: locations.filter(l => !!l.physicalMetadata).length,
+    leafLocations: locationsWithDepth.filter(l => l.isLeaf).length,
+    storageCapableLocations: locations.filter(l => l.capabilities.canStoreInventory).length,
+    virtualLocations: locations.filter(l => l.capabilities.isVirtual).length,
+    pickableLocations: locations.filter(l => l.capabilities.canPick).length,
+    receivableLocations: locations.filter(l => l.capabilities.canReceive).length,
+    withQrCode: locations.filter(l => !!l.physical?.qrCode).length,
+    withBarcode: 0, // Removed from schema per new model instructions
     withWarnings: locations.filter(l => (l.warnings?.length || 0) > 0).length,
   };
 
-  const byType: Record<string, number> = {};
+  const byRole: Record<string, number> = {};
   const byStatus: Record<string, number> = {};
   let maxDepth = 0;
 
-  locationsWithPaths.forEach(l => {
-    byType[l.locationType] = (byType[l.locationType] || 0) + 1;
+  locationsWithDepth.forEach(l => {
+    byRole[l.role] = (byRole[l.role] || 0) + 1;
     byStatus[l.status] = (byStatus[l.status] || 0) + 1;
     if (l.depth > maxDepth) maxDepth = l.depth;
   });
@@ -176,49 +159,41 @@ export function generateLocationExport(
     .map(l => l.id);
 
   const circularReferences: string[] = [];
-  locationsWithPaths.forEach(l => {
+  locationsWithDepth.forEach(l => {
     if (l.ancestorIds.includes(l.id)) {
       circularReferences.push(l.id);
     }
   });
 
-  const parentAllowsStockWithChildren = locationsWithPaths
-    .filter(l => l.allowsStock && !l.isLeaf)
+  const parentAllowsStockWithChildren = locationsWithDepth
+    .filter(l => l.capabilities.canStoreInventory && !l.isLeaf)
     .map(l => l.id);
 
   // Visualization Readiness
-  const storageCapableLeafLocations = locationsWithPaths
-    .filter(l => l.allowsStock && l.isLeaf)
+  const storageCapableLeafLocations = locationsWithDepth
+    .filter(l => l.capabilities.canStoreInventory && l.isLeaf)
     .map(l => l.id);
 
-  const containerTypes = [LocationType.RACK, LocationType.SHELF, LocationType.AISLE, LocationType.ZONE, LocationType.WAREHOUSE];
   const containerLocations = locations
-    .filter(l => containerTypes.includes(l.locationType))
+    .filter(l => !isLeaf(l.id))
     .map(l => l.id);
 
-  const visualizationEligibleTypes = [
-    LocationType.WAREHOUSE, LocationType.ZONE, LocationType.AISLE, 
-    LocationType.RACK, LocationType.SHELF, LocationType.BIN,
-    LocationType.PALLET_POSITION, LocationType.WORKBENCH,
-    LocationType.BULK_STORAGE, LocationType.STAGING_AREA
-  ];
-  
   const locationsEligibleForVisualization = locations
-    .filter(l => !l.isVirtual && visualizationEligibleTypes.includes(l.locationType))
+    .filter(l => !l.capabilities.isVirtual)
     .map(l => l.id);
 
   return {
-    schemaVersion: 'ambra-location-tree-export-v1',
+    schemaVersion: 'ambra-location-model-refactor-v1',
     exportedAt,
     source: {
       branchId,
       appUnit: 'cm'
     },
-    locations: locationsWithPaths as any,
+    locations: locationsWithDepth as any,
     tree,
     metadata: {
       counts,
-      byType,
+      byRole,
       byStatus,
       maxDepth
     },
@@ -226,8 +201,7 @@ export function generateLocationExport(
       missingParents,
       duplicateCodes,
       circularReferences,
-      orphanedLocations: missingParents, // In this context same as missing parents
-      invalidStockFlags: [], // Placeholder for future rules
+      orphanedLocations: missingParents,
       parentAllowsStockWithChildren,
       locationsWithoutCodes: locations.filter(l => !l.code).map(l => l.id),
       locationsWithoutNames: locations.filter(l => !l.name).map(l => l.id),
@@ -236,8 +210,8 @@ export function generateLocationExport(
       locationsEligibleForVisualization,
       storageCapableLeafLocations,
       containerLocations,
-      virtualLocationsExcludedFromVisualization: locations.filter(l => l.isVirtual).map(l => l.id),
-      suggestedWorkspaceRoots: locations.filter(l => l.locationType === LocationType.WAREHOUSE).map(l => l.id)
+      virtualLocationsExcludedFromVisualization: locations.filter(l => l.capabilities.isVirtual).map(l => l.id),
+      suggestedWorkspaceRoots: locations.filter(l => !l.parentId).map(l => l.id)
     }
   };
 }

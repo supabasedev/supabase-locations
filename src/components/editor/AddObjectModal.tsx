@@ -10,7 +10,7 @@ import {
   Grid
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { LocationType, LogicalLocation } from '../../types';
+import { LogicalLocation, LocationRole } from '../../types';
 
 interface AddObjectModalProps {
   onClose: () => void;
@@ -28,7 +28,7 @@ export default function AddObjectModal({ onClose, onSubmit, locations, forceMode
     label: '',
     code: '',
     name: '',
-    locationType: LocationType.RACK,
+    role: LocationRole.STORAGE,
     parentId: '',
     locationId: initialLocationId || '',
     dimensions: { width: 100, height: 200, depth: 60 } // These are now in CM
@@ -173,10 +173,10 @@ export default function AddObjectModal({ onClose, onSubmit, locations, forceMode
                       onChange={(v) => setFormData({ ...formData, name: v })}
                     />
                     <Select 
-                      label="Location Type"
-                      options={Object.values(LocationType)}
-                      value={formData.locationType}
-                      onChange={(v) => setFormData({ ...formData, locationType: v as LocationType })}
+                      label="Location Role"
+                      options={Object.values(LocationRole)}
+                      value={formData.role}
+                      onChange={(v) => setFormData({ ...formData, role: v as LocationRole })}
                     />
                     <Select 
                       label="Parent Node Anchor"

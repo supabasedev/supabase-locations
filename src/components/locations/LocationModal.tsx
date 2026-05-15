@@ -33,7 +33,7 @@ const CUSTOM_COLORS = [
   { name: 'Slate', value: 'text-slate-400', bg: 'bg-slate-500' },
 ];
 import { motion, AnimatePresence } from 'motion/react';
-import { LocationType, LogicalLocation } from '../../types';
+import { LogicalLocation, LocationRole } from '../../types';
 
 interface LocationModalProps {
   onClose: () => void;
@@ -48,11 +48,16 @@ export default function LocationModal({ onClose, onSubmit, locations, initialDat
     name: initialData?.name || '',
     description: initialData?.description || '',
     parentId: initialData?.parentId || '',
-    locationType: initialData?.locationType || LocationType.BIN,
-    allowsStock: initialData?.allowsStock ?? true,
-    isReceivable: initialData?.isReceivable ?? true,
-    isPickable: initialData?.isPickable ?? true,
-    isVirtual: initialData?.isVirtual ?? false,
+    role: initialData?.role || LocationRole.STORAGE,
+    capabilities: initialData?.capabilities || {
+        canStoreInventory: true,
+        canReceive: true,
+        canPick: true,
+        canShip: false,
+        canReserve: true,
+        isVirtual: false,
+        isTemporary: false
+    },
     status: initialData?.status || 'active',
     icon: initialData?.icon || '',
     color: initialData?.color || '',
@@ -70,17 +75,22 @@ export default function LocationModal({ onClose, onSubmit, locations, initialDat
 
   const [currentStep, setCurrentStep] = useState<'BASIC' | 'TYPE' | 'PHYSICAL'>('BASIC');
 
-  const handleTypeSelect = (type: LocationType) => {
-    const category = LOCATION_CATEGORIES[type];
+  const handleRoleSelect = (role: LocationRole) => {
+    const category = LOCATION_CATEGORIES[role];
     if (!category) return;
 
     setFormData(prev => ({
         ...prev,
-        locationType: type,
-        allowsStock: category.defaults.storesInventory ?? true,
-        isReceivable: category.defaults.receivable ?? true,
-        isPickable: category.defaults.pickable ?? true,
-        isVirtual: category.defaults.virtual ?? false
+        role: role,
+        capabilities: {
+            ...prev.capabilities,
+            canStoreInventory: category.defaults.canStoreInventory ?? true,
+            canReceive: category.defaults.canReceive ?? true,
+            canPick: category.defaults.canPick ?? true,
+            canShip: category.defaults.canShip ?? false,
+            canReserve: category.defaults.canReserve ?? true,
+            isVirtual: category.defaults.isVirtual ?? false
+        }
     }));
   };
 
@@ -200,11 +210,11 @@ export default function LocationModal({ onClose, onSubmit, locations, initialDat
                         <label className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500 ml-1">Rich Categories</label>
                         <div className="grid grid-cols-2 gap-3 max-h-[480px] overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-slate-800">
                             {(Object.values(LOCATION_CATEGORIES) as LocationCategoryDefinition[]).map((cat) => {
-                                const active = formData.locationType === cat.id;
+                                const active = formData.role === cat.id;
                                 return (
                                     <div 
                                         key={cat.id} 
-                                        onClick={() => handleTypeSelect(cat.id)}
+                                        onClick={() => handleRoleSelect(cat.id)}
                                         className={`flex flex-col gap-3 p-4 rounded-2xl border cursor-pointer transition-all hover:scale-[1.02] ${
                                             active 
                                               ? 'bg-sky-500/10 border-sky-500 shadow-[0_0_20px_rgba(56,189,248,0.1)]' 
@@ -238,7 +248,7 @@ export default function LocationModal({ onClose, onSubmit, locations, initialDat
                             <Zap className="w-4 h-4 text-sky-400" />
                          </div>
                          <p className="text-[10px] text-sky-400/80 leading-relaxed font-bold uppercase tracking-tight">
-                            Capabilities derived from <span className="text-sky-300">{LOCATION_CATEGORIES[formData.locationType]?.label}</span>. Manual overrides allowed.
+                            Capabilities derived from <span className="text-sky-300">{LOCATION_CATEGORIES[formData.role]?.label}</span>. Manual overrides allowed.
                          </p>
                       </div>
 
@@ -246,26 +256,26 @@ export default function LocationModal({ onClose, onSubmit, locations, initialDat
                         <BehaviorToggle 
                             icon={<Database className="w-4 h-4" />} 
                             label="Allows Stock" 
-                            checked={formData.allowsStock} 
-                            onChange={(v) => setFormData({ ...formData, allowsStock: v })}
+                            checked={formData.capabilities.canStoreInventory} 
+                            onChange={(v) => setFormData({ ...formData, capabilities: { ...formData.capabilities, canStoreInventory: v } })}
                         />
                         <BehaviorToggle 
                             icon={<Inbox className="w-4 h-4" />} 
                             label="Receivable" 
-                            checked={formData.isReceivable} 
-                            onChange={(v) => setFormData({ ...formData, isReceivable: v })}
+                            checked={formData.capabilities.canReceive} 
+                            onChange={(v) => setFormData({ ...formData, capabilities: { ...formData.capabilities, canReceive: v } })}
                         />
                         <BehaviorToggle 
                             icon={<RotateCcw className="w-4 h-4" />} 
                             label="Pickable" 
-                            checked={formData.isPickable} 
-                            onChange={(v) => setFormData({ ...formData, isPickable: v })}
+                            checked={formData.capabilities.canPick} 
+                            onChange={(v) => setFormData({ ...formData, capabilities: { ...formData.capabilities, canPick: v } })}
                         />
                         <BehaviorToggle 
                             icon={<ShieldCheckIcon className="w-4 h-4" />} 
                             label="Operational Only (Virtual)" 
-                            checked={formData.isVirtual} 
-                            onChange={(v) => setFormData({ ...formData, isVirtual: v })}
+                            checked={formData.capabilities.isVirtual} 
+                            onChange={(v) => setFormData({ ...formData, capabilities: { ...formData.capabilities, isVirtual: v } })}
                         />
                       </div>
 

@@ -1,15 +1,30 @@
-import React from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Page } from '../../App';
 import { Branch } from '../../types';
-import { Box, Map, Database, LayoutGrid, ChevronDown, Bell, Search, User } from 'lucide-react';
+import { Box, Map, Database, LayoutGrid, ChevronDown, Bell, User, Check } from 'lucide-react';
 
 interface NavigationProps {
   activePage: Page;
   onNavigate: (page: Page) => void;
   activeBranch: Branch;
+  branches: Branch[];
+  onBranchChange: (branch: Branch) => void;
 }
 
-export default function Navigation({ activePage, onNavigate, activeBranch }: NavigationProps) {
+export default function Navigation({ activePage, onNavigate, activeBranch, branches, onBranchChange }: NavigationProps) {
+  const [isBranchMenuOpen, setIsBranchMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+        setIsBranchMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
   return (
     <header className="h-14 border-b border-slate-700 bg-slate-900 flex items-center justify-between px-6 z-50">
       <div className="flex items-center gap-8">
@@ -37,10 +52,41 @@ export default function Navigation({ activePage, onNavigate, activeBranch }: Nav
       </div>
 
       <div className="flex items-center gap-4">
-        <div className="flex items-center gap-2 px-3 py-1.5 rounded-md bg-slate-800 hover:bg-slate-700 cursor-pointer transition-colors border border-slate-700">
-          <LayoutGrid className="w-4 h-4 text-slate-400" />
-          <span className="text-xs font-medium text-slate-300">{activeBranch.name}</span>
-          <ChevronDown className="w-3 h-3 text-slate-500" />
+        <div className="relative" ref={menuRef}>
+          <div 
+            onClick={() => setIsBranchMenuOpen(!isBranchMenuOpen)}
+            className="flex items-center gap-2 px-3 py-1.5 rounded-md bg-slate-800 hover:bg-slate-700 cursor-pointer transition-colors border border-slate-700 select-none"
+          >
+            <LayoutGrid className="w-4 h-4 text-slate-400" />
+            <span className="text-xs font-medium text-slate-300">{activeBranch.name}</span>
+            <ChevronDown className={`w-3 h-3 text-slate-500 transition-transform ${isBranchMenuOpen ? 'rotate-180' : ''}`} />
+          </div>
+
+          {isBranchMenuOpen && (
+            <div className="absolute top-full right-0 mt-2 w-56 bg-slate-800 border border-slate-700 rounded-xl shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-100 z-[60]">
+               <div className="p-2 border-b border-slate-700/50">
+                 <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider px-2">Switch Branch</span>
+               </div>
+               <div className="p-1">
+                 {branches.map((branch) => (
+                   <div 
+                    key={branch.id}
+                    onClick={() => {
+                      onBranchChange(branch);
+                      setIsBranchMenuOpen(false);
+                    }}
+                    className={`
+                      flex items-center justify-between px-3 py-2 rounded-lg cursor-pointer transition-colors
+                      ${activeBranch.id === branch.id ? 'bg-sky-500/10 text-sky-400' : 'text-slate-300 hover:bg-slate-700'}
+                    `}
+                   >
+                     <span className="text-xs font-medium">{branch.name}</span>
+                     {activeBranch.id === branch.id && <Check className="w-3.5 h-3.5" />}
+                   </div>
+                 ))}
+               </div>
+            </div>
+          )}
         </div>
 
         <div className="flex items-center gap-2 border-l border-slate-700 pl-4">

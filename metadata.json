@@ -1,6 +1,6 @@
 {
   "name": "AMBRA Locations",
-  "description": "A high-fidelity spatial warehouse planner with interactive top-down layouts and structural front-view configuration for cabinets and racks.",
+  "description": "Multi-branch spatial warehouse planner with interactive mapping, structural configuration, and high-fidelity 2D/3D layouts.",
   "requestFramePermissions": [],
-  "majorCapabilities": []
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

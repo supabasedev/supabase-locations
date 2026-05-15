@@ -58,7 +58,7 @@ export default function EditorCanvas({
   };
 
   // Helper to check if a node ID is selected
-  const isSelected = (id: string) => selectedNodeIds.includes(id);
+  const isSelected = (id: string) => selectedNodeIds?.includes(id);
 
   // Update dimensions on resize
   useEffect(() => {
@@ -301,7 +301,7 @@ export default function EditorCanvas({
     }
     // Record initial positions of all selected nodes for multi-drag
     const positions: Record<string, { x: number, y: number }> = {};
-    visuals.filter(v => selectedNodeIds.includes(v.id)).forEach(v => {
+    visuals.filter(v => selectedNodeIds?.includes(v.id)).forEach(v => {
       positions[v.id] = { x: v.x, y: v.y };
     });
     // We'll store this in a ref or local state if needed, but for now we'll use delta calculation in handleDragMove
@@ -322,7 +322,7 @@ export default function EditorCanvas({
     if (Math.abs(dx) < 0.01 && Math.abs(dy) < 0.01) return;
 
     // Blocking check for all selected nodes
-    const blockingZones = visuals.filter(v => v.type === 'zone' && v.blockPlacement && !selectedNodeIds.includes(v.id));
+    const blockingZones = visuals.filter(v => v.type === 'zone' && v.blockPlacement && !selectedNodeIds?.includes(v.id));
     
     // Function to find the max allowed delta given a direction
     const getMaxDelta = (propDx: number, propDy: number) => {
@@ -761,9 +761,9 @@ export default function EditorCanvas({
                   y={0}
                   width={rootVisual.width * scale}
                   height={(viewMode === ViewMode.TOP_DOWN ? rootVisual.depth : rootVisual.height) * scale}
-                  fill={isSelected(rootVisual.id) || previewSelectedIds.includes(rootVisual.id) ? "#1e293b" : "#111827"}
-                  stroke={isSelected(rootVisual.id) || previewSelectedIds.includes(rootVisual.id) ? (previewSelectedIds.includes(rootVisual.id) ? "#38bdf8" : "#0ea5e9") : "#334155"}
-                  strokeWidth={(isSelected(rootVisual.id) || previewSelectedIds.includes(rootVisual.id)) ? (2 / zoomLevel) : (1 / zoomLevel)}
+                  fill={isSelected(rootVisual.id) || previewSelectedIds?.includes(rootVisual.id) ? "#1e293b" : "#111827"}
+                  stroke={isSelected(rootVisual.id) || previewSelectedIds?.includes(rootVisual.id) ? (previewSelectedIds?.includes(rootVisual.id) ? "#38bdf8" : "#0ea5e9") : "#334155"}
+                  strokeWidth={(isSelected(rootVisual.id) || previewSelectedIds?.includes(rootVisual.id)) ? (2 / zoomLevel) : (1 / zoomLevel)}
                   onClick={(e) => {
                     if (e.evt.button !== 0) return;
                     if (rootVisual.locked) return; // Prevent selection if locked
@@ -816,22 +816,22 @@ export default function EditorCanvas({
                       width={v.width * scale}
                       height={(viewMode === ViewMode.TOP_DOWN ? v.depth : v.height) * scale}
                       fill={v.type === 'zone' 
-                        ? (isSelected(v.id) || previewSelectedIds.includes(v.id)
+                        ? (isSelected(v.id) || previewSelectedIds?.includes(v.id)
                             ? `${v.color}${Math.round((v.primaryOpacity ?? 0.6) * 255).toString(16).padStart(2, '0')}` 
                             : `${v.color}${Math.round((v.primaryOpacity ?? 0.3) * 255).toString(16).padStart(2, '0')}`)
-                        : (isSelected(v.id) || previewSelectedIds.includes(v.id) ? (previewSelectedIds.includes(v.id) ? "rgba(56, 189, 248, 0.2)" : "#0ea5e922") : "#1e293b")}
-                      stroke={isSelected(v.id) || previewSelectedIds.includes(v.id) ? (v.type === 'zone' ? v.color : (previewSelectedIds.includes(v.id) ? "#38bdf8" : "#0ea5e9")) : (v.type === 'zone' ? `${v.color}44` : "#475569")}
-                      strokeWidth={(isSelected(v.id) || previewSelectedIds.includes(v.id)) ? (2 / zoomLevel) : (v.type === 'industrial' ? (2 / zoomLevel) : (1 / zoomLevel))}
+                        : (isSelected(v.id) || previewSelectedIds?.includes(v.id) ? (previewSelectedIds?.includes(v.id) ? "rgba(56, 189, 248, 0.2)" : "#0ea5e922") : "#1e293b")}
+                      stroke={isSelected(v.id) || previewSelectedIds?.includes(v.id) ? (v.type === 'zone' ? v.color : (previewSelectedIds?.includes(v.id) ? "#38bdf8" : "#0ea5e9")) : (v.type === 'zone' ? `${v.color}44` : "#475569")}
+                      strokeWidth={(isSelected(v.id) || previewSelectedIds?.includes(v.id)) ? (2 / zoomLevel) : (v.type === 'industrial' ? (2 / zoomLevel) : (1 / zoomLevel))}
                       cornerRadius={v.type === 'industrial' ? (0) : (2 / zoomLevel)}
                       dash={v.type === 'zone' ? [5 / zoomLevel, 5 / zoomLevel] : []}
                     />
                     
                     {/* Subtle selection/preview overlay for modern look */}
-                    {(isSelected(v.id) || previewSelectedIds.includes(v.id)) && (
+                    {(isSelected(v.id) || previewSelectedIds?.includes(v.id)) && (
                       <Rect 
                         width={v.width * scale}
                         height={(viewMode === ViewMode.TOP_DOWN ? v.depth : v.height) * scale}
-                        fill={previewSelectedIds.includes(v.id) ? "rgba(14, 165, 233, 0.15)" : "rgba(14, 165, 233, 0.05)"}
+                        fill={previewSelectedIds?.includes(v.id) ? "rgba(14, 165, 233, 0.15)" : "rgba(14, 165, 233, 0.05)"}
                         cornerRadius={v.type === 'industrial' ? 0 : 2 / zoomLevel}
                         listening={false}
                       />

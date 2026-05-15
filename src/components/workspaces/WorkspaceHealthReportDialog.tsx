@@ -222,7 +222,7 @@ export default function WorkspaceHealthReportDialog({ layout, visuals, locations
                          <div key={i} className="p-3 rounded-xl border border-slate-800 flex items-center justify-between">
                             <div className="space-y-0.5">
                                <p className="text-[11px] font-bold text-white uppercase">{loc.code}</p>
-                               <p className="text-[9px] text-slate-500 uppercase font-black tracking-widest">{loc.locationType}</p>
+                               <p className="text-[9px] text-slate-500 uppercase font-black tracking-widest">{loc.role}</p>
                             </div>
                             <HelpCircle className="w-3 h-3 text-slate-800" />
                          </div>

@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { 
   LogicalLocation, 
+  LocationRole,
+  LocationCapabilities,
   VisualNode, 
-  LocationType, 
   MappingStatus,
   Layout
 } from '../../types';
@@ -117,6 +118,13 @@ export default function LocationsPage({
   
   const [activeTab, setActiveTab] = useState<'info' | 'inventory'>('info');
   
+  // Reset selected location when the locations list changes (e.g. branch switch)
+  React.useEffect(() => {
+    if (selectedLocationId && !locations.some(l => l.id === selectedLocationId)) {
+        setSelectedLocationId(locations[0]?.id || null);
+    }
+  }, [locations, selectedLocationId]);
+
   // New States
   const [isCompactMode, setIsCompactMode] = useState(false);
   const [isMoveModalOpen, setIsMoveModalOpen] = useState(false);
@@ -167,24 +175,34 @@ export default function LocationsPage({
     const newId = `l-${Date.now()}`;
     const newLoc: LogicalLocation = {
         id: newId,
+        branchId: locations[0]?.branchId || 'main-branch',
         code: data.code || `NEW-${newId.slice(-4)}`,
         name: data.name || 'New Location',
         description: data.description || '',
         parentId: data.parentId === 'ROOT-SYS' || data.parentId === '' ? null : data.parentId || null,
-        locationType: data.locationType || LocationType.BIN,
-        allowsStock: data.allowsStock ?? true,
-        isReceivable: data.isReceivable ?? true,
-        isPickable: data.isPickable ?? true,
-        isVirtual: data.isVirtual ?? false,
+        role: data.role || LocationRole.BIN,
+        capabilities: data.capabilities || { 
+          canStoreInventory: true, 
+          canPick: true, 
+          canReceive: true,
+          canShip: false,
+          canReserve: true,
+          isVirtual: false,
+          isTemporary: false
+        },
         status: data.status || 'active',
         icon: data.icon,
-        color: data.color
+        color: data.color,
+        pathCode: '', // Calculated via server/backend or util
+        pathName: '',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
     };
     onCreateLocation(newLoc);
     setIsAddModalOpen(false);
     
     // Auto-expand parent
-    if (newLoc.parentId && !expandedIds.includes(newLoc.parentId)) {
+    if (newLoc.parentId && !expandedIds?.includes(newLoc.parentId)) {
         setExpandedIds(prev => [...prev, newLoc.parentId!]);
     }
   };
@@ -192,7 +210,7 @@ export default function LocationsPage({
   const toggleExpand = (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
     setExpandedIds(prev => 
-      prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
+      prev?.includes(id) ? prev.filter(i => i !== id) : [...(prev || []), id]
     );
   };
 
@@ -296,17 +314,17 @@ export default function LocationsPage({
     // If searching, we only render items that match or are parents of matches
     if (searchQuery !== '') {
         const pathIds = getLocationPath(location.id).map(l => l.id);
-        const hasMatchingChild = filteredLocations.some(fl => getLocationPath(fl.id).map(l => l.id).includes(location.id));
+        const hasMatchingChild = filteredLocations.some(fl => getLocationPath(fl.id).map(l => l.id)?.includes(location.id));
         const isMatch = filteredLocations.some(fl => fl.id === location.id);
         if (!isMatch && !hasMatchingChild) return null;
     }
 
     const children = locations.filter(l => l.parentId === location.id).sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
     const hasChildren = children.length > 0;
-    const isExpanded = expandedIds.includes(location.id) || searchQuery !== '';
+    const isExpanded = expandedIds?.includes(location.id) || searchQuery !== '';
     const isSelected = selectedLocationId === location.id;
 
-    const category = LOCATION_CATEGORIES[location.locationType];
+    const category = LOCATION_CATEGORIES[location.role];
     const iconName = location.icon || category?.iconName || 'Box';
     const iconColorClass = location.color || (isSelected ? 'text-sky-400' : 'text-slate-500 group-hover:text-slate-400');
     
@@ -622,12 +640,12 @@ export default function LocationsPage({
                     <div>
                       <div className="flex items-center gap-3">
                         <h1 className="text-2xl font-black text-white tracking-tight flex items-center gap-3">
-                           <IconRenderer name={selectedLocation.icon || LOCATION_CATEGORIES[selectedLocation.locationType]?.iconName || 'Database'} className={`w-6 h-6 ${selectedLocation.color || 'text-sky-400'}`} />
+                           <IconRenderer name={selectedLocation.icon || LOCATION_CATEGORIES[selectedLocation.role]?.iconName || 'Database'} className={`w-6 h-6 ${selectedLocation.color || 'text-sky-400'}`} />
                            {selectedLocation.name}
                         </h1>
                         <div className="px-2 py-0.5 rounded items-center justify-center bg-slate-800 border border-slate-700 text-[9px] font-black text-slate-400 uppercase tracking-widest flex gap-1.5 mt-1">
-                          <IconRenderer name={LOCATION_CATEGORIES[selectedLocation.locationType]?.iconName || 'Box'} className={`w-3 h-3 ${selectedLocation.color || 'text-slate-500'}`} />
-                          {LOCATION_CATEGORIES[selectedLocation.locationType]?.label || selectedLocation.locationType}
+                          <IconRenderer name={LOCATION_CATEGORIES[selectedLocation.role]?.iconName || 'Box'} className={`w-3 h-3 ${selectedLocation.color || 'text-slate-500'}`} />
+                          {LOCATION_CATEGORIES[selectedLocation.role]?.label || selectedLocation.role}
                         </div>
                       </div>
                       <div className="flex items-center mt-2 inline-flex">
@@ -787,16 +805,16 @@ export default function LocationsPage({
                         )}
                         <div className={isCompactMode ? 'flex items-center gap-4' : 'p-6'}>
                           <div className={isCompactMode ? 'flex items-center gap-3' : 'flex items-start gap-4 mb-4'}>
-                            <div className={isCompactMode ? `p-2 rounded-lg bg-slate-800 border border-slate-700 ${LOCATION_CATEGORIES[selectedLocation.locationType]?.color || 'text-sky-400'}` : `p-4 rounded-2xl bg-slate-800 border border-slate-700 ${LOCATION_CATEGORIES[selectedLocation.locationType]?.color || 'text-sky-400'}`}>
-                              <IconRenderer name={LOCATION_CATEGORIES[selectedLocation.locationType]?.iconName || 'Database'} className={isCompactMode ? 'w-4 h-4' : 'w-6 h-6'} />
+                            <div className={isCompactMode ? `p-2 rounded-lg bg-slate-800 border border-slate-700 ${LOCATION_CATEGORIES[selectedLocation.role]?.color || 'text-sky-400'}` : `p-4 rounded-2xl bg-slate-800 border border-slate-700 ${LOCATION_CATEGORIES[selectedLocation.role]?.color || 'text-sky-400'}`}>
+                              <IconRenderer name={LOCATION_CATEGORIES[selectedLocation.role]?.iconName || 'Database'} className={isCompactMode ? 'w-4 h-4' : 'w-6 h-6'} />
                             </div>
                             <div>
                               <h3 className={isCompactMode ? 'text-xs font-black text-white uppercase' : 'text-lg font-black text-white tracking-tight'}>
-                                {LOCATION_CATEGORIES[selectedLocation.locationType]?.label}
+                                {LOCATION_CATEGORIES[selectedLocation.role]?.label}
                               </h3>
                               {!isCompactMode && (
                                 <p className="text-xs text-slate-500 font-medium leading-relaxed mt-1">
-                                  {LOCATION_CATEGORIES[selectedLocation.locationType]?.description}
+                                  {LOCATION_CATEGORIES[selectedLocation.role]?.description}
                                 </p>
                               )}
                             </div>
@@ -861,10 +879,10 @@ export default function LocationsPage({
                           <div className="p-6">
                             <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mb-4">Functional Capabilities</p>
                             <div className="grid grid-cols-2 gap-3">
-                              <BehaviorIndicator label="Stores Inventory" active={selectedLocation.allowsStock} icon={<Database className="w-3.5 h-3.5" />} />
-                              <BehaviorIndicator label="Pickable" active={selectedLocation.isPickable} icon={<RotateCcw className="w-3.5 h-3.5" />} />
-                              <BehaviorIndicator label="Receivable" active={selectedLocation.isReceivable} icon={<Inbox className="w-3.5 h-3.5" />} />
-                              <BehaviorIndicator label="Virtual" active={selectedLocation.isVirtual} icon={<Zap className="w-3.5 h-3.5" />} />
+                              <BehaviorIndicator label="Stores Inventory" active={selectedLocation.capabilities.canStoreInventory} icon={<Database className="w-3.5 h-3.5" />} />
+                              <BehaviorIndicator label="Pickable" active={selectedLocation.capabilities.canPick} icon={<RotateCcw className="w-3.5 h-3.5" />} />
+                              <BehaviorIndicator label="Receivable" active={selectedLocation.capabilities.canReceive} icon={<Inbox className="w-3.5 h-3.5" />} />
+                              <BehaviorIndicator label="Virtual" active={selectedLocation.capabilities.isVirtual} icon={<Zap className="w-3.5 h-3.5" />} />
                             </div>
                           </div>
                         </div>
@@ -872,10 +890,10 @@ export default function LocationsPage({
 
                       {isCompactMode && (
                         <>
-                          <CompactIndicator label="Stockable" active={selectedLocation.allowsStock} icon={<Database className="w-3 h-3" />} />
-                          <CompactIndicator label="Pickable" active={selectedLocation.isPickable} icon={<RotateCcw className="w-3 h-3" />} />
-                          <CompactIndicator label="Receivable" active={selectedLocation.isReceivable} icon={<Inbox className="w-3 h-3" />} />
-                          <CompactIndicator label="Virtual" active={selectedLocation.isVirtual} icon={<Zap className="w-3 h-3" />} />
+                          <CompactIndicator label="Stockable" active={selectedLocation.capabilities.canStoreInventory} icon={<Database className="w-3 h-3" />} />
+                          <CompactIndicator label="Pickable" active={selectedLocation.capabilities.canPick} icon={<RotateCcw className="w-3 h-3" />} />
+                          <CompactIndicator label="Receivable" active={selectedLocation.capabilities.canReceive} icon={<Inbox className="w-3 h-3" />} />
+                          <CompactIndicator label="Virtual" active={selectedLocation.capabilities.isVirtual} icon={<Zap className="w-3 h-3" />} />
                         </>
                       )}
 
@@ -1052,10 +1070,10 @@ export default function LocationsPage({
                             <div className={childListDensity === 'COMFORTABLE' ? "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4" : "space-y-1"}>
                               {locations.filter(l => l.parentId === selectedLocation.id).map(child => (
                                 childListDensity === 'COMFORTABLE' ? (
-                                  <div key={child.id} onClick={() => setSelectedLocationId(child.id)} className="flex items-center justify-between p-4 rounded-2xl bg-slate-800/20 border border-slate-800 hover:border-sky-500/50 hover:bg-slate-800/40 transition-all cursor-pointer group shadow-sm">
+                                    <div key={child.id} onClick={() => setSelectedLocationId(child.id)} className="flex items-center justify-between p-4 rounded-2xl bg-slate-800/20 border border-slate-800 hover:border-sky-500/50 hover:bg-slate-800/40 transition-all cursor-pointer group shadow-sm">
                                     <div className="flex items-center gap-4">
-                                      <div className={`w-12 h-12 rounded-xl bg-slate-900 border border-slate-700 flex items-center justify-center shrink-0 ${LOCATION_CATEGORIES[child.locationType]?.color || 'text-slate-500'}`}>
-                                         <IconRenderer name={child.icon || LOCATION_CATEGORIES[child.locationType]?.iconName || 'Box'} className="w-6 h-6" />
+                                      <div className={`w-12 h-12 rounded-xl bg-slate-900 border border-slate-700 flex items-center justify-center shrink-0 ${LOCATION_CATEGORIES[child.role]?.color || 'text-slate-500'}`}>
+                                         <IconRenderer name={child.icon || LOCATION_CATEGORIES[child.role]?.iconName || 'Box'} className="w-6 h-6" />
                                       </div>
                                       <div className="overflow-hidden">
                                         <p className="text-xs font-black text-white truncate">{child.name}</p>
@@ -1065,7 +1083,7 @@ export default function LocationsPage({
                                         </div>
                                         <div className="flex items-center gap-3 mt-1.5">
                                            <span className="text-[9px] font-mono text-emerald-500 bg-emerald-500/5 px-1.5 py-0.5 rounded border border-emerald-500/10">{child.stockCount || 0} stocks</span>
-                                           <span className="text-[9px] font-bold text-slate-600 uppercase tracking-widest">{LOCATION_CATEGORIES[child.locationType]?.label}</span>
+                                           <span className="text-[9px] font-bold text-slate-600 uppercase tracking-widest">{LOCATION_CATEGORIES[child.role]?.label}</span>
                                         </div>
                                       </div>
                                     </div>
@@ -1075,11 +1093,11 @@ export default function LocationsPage({
                                   <div key={child.id} onClick={() => setSelectedLocationId(child.id)} className="flex items-center justify-between py-1.5 px-4 rounded-lg bg-slate-950/30 border border-transparent hover:border-slate-800 hover:bg-slate-800/40 transition-all cursor-pointer group">
                                      <div className="flex items-center gap-4 flex-1">
                                         <div className="flex items-center gap-2 w-48 shrink-0">
-                                           <IconRenderer name={child.icon || LOCATION_CATEGORIES[child.locationType]?.iconName || 'Box'} className={`w-3.5 h-3.5 ${LOCATION_CATEGORIES[child.locationType]?.color || 'text-slate-600'}`} />
+                                           <IconRenderer name={child.icon || LOCATION_CATEGORIES[child.role]?.iconName || 'Box'} className={`w-3.5 h-3.5 ${LOCATION_CATEGORIES[child.role]?.color || 'text-slate-600'}`} />
                                            <span className="text-[11px] font-bold text-slate-200 truncate group-hover:text-white transition-colors">{child.name}</span>
                                         </div>
                                         <span className="w-24 text-[10px] font-mono font-bold text-sky-500/70 group-hover:text-sky-400 transition-colors uppercase truncate">{child.code}</span>
-                                        <span className="text-[9px] font-black uppercase tracking-widest text-slate-600 w-32">{LOCATION_CATEGORIES[child.locationType]?.label}</span>
+                                        <span className="text-[9px] font-black uppercase tracking-widest text-slate-600 w-32">{LOCATION_CATEGORIES[child.role]?.label}</span>
                                         <div className="flex items-center gap-1.5 w-24">
                                            <Package className="w-3 h-3 text-slate-700" />
                                            <span className="text-[10px] font-mono text-slate-500">{child.stockCount || 0}</span>

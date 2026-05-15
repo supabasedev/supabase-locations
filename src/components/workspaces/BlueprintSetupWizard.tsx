@@ -20,7 +20,7 @@ import {
   AlertCircle
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { LocationType, LogicalLocation } from '../../types';
+import { LocationRole, LogicalLocation } from '../../types';
 
 interface BlueprintSetupWizardProps {
   onClose: () => void;
@@ -115,15 +115,13 @@ export default function BlueprintSetupWizard({ onClose, onConfirm, locations }: 
 
   const filterRecommendedLocations = (locs: LogicalLocation[]) => {
     // Recommend locations that can act as physical roots
-    const validTypes = [
-      LocationType.WAREHOUSE,
-      LocationType.ZONE,
-      LocationType.STAGING_AREA,
-      LocationType.BULK_STORAGE,
-      LocationType.OFFICE_STORAGE,
-      LocationType.OTHER
+    const validRoles = [
+      LocationRole.WAREHOUSE,
+      LocationRole.ZONE,
+      LocationRole.STAGING,
+      LocationRole.OTHER
     ];
-    return locs.filter(l => validTypes.includes(l.locationType));
+    return locs.filter(l => validRoles.includes(l.role));
   };
 
   const handleCreate = () => {

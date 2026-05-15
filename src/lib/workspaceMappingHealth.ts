@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { VisualNode, LogicalLocation, StructureNode, LocationType, Layout, VisualNodeRole } from '../types';
+import { VisualNode, LogicalLocation, StructureNode, Layout, VisualNodeRole } from '../types';
 
 export interface MappingHealthReport {
   timestamp: string;
@@ -129,7 +129,7 @@ export function analyzeWorkspaceMappingHealth(
 
   const locationMap = new Map(filteredLocations.map(l => [l.id, l]));
   const globalLocationMap = new Map(locations.map(l => [l.id, l]));
-  const operationalLocations = filteredLocations.filter(l => l.allowsStock);
+  const operationalLocations = filteredLocations.filter(l => l.capabilities.canStoreInventory);
   report.summary.operationalLocations = operationalLocations.length;
 
   // Track mappings
@@ -277,7 +277,7 @@ export function analyzeWorkspaceMappingHealth(
         break;
       }
       
-      if (!mappingIndex.has(currentParentId) && !parentInScope.isVirtual) {
+      if (!mappingIndex.has(currentParentId) && !parentInScope.capabilities.isVirtual) {
         missingAncestors.push({ id: parentInScope.id, code: parentInScope.code });
       }
       
@@ -297,7 +297,7 @@ export function analyzeWorkspaceMappingHealth(
   // 6. Storage Conflicts
   filteredLocations.forEach(loc => {
     const hasChildren = filteredLocations.some(l => l.parentId === loc.id);
-    if (loc.allowsStock && hasChildren) {
+    if (loc.capabilities.canStoreInventory && hasChildren) {
       report.details.storageConflicts.push({
         locationId: loc.id,
         locationCode: loc.code,

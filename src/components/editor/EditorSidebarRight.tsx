@@ -2,6 +2,7 @@ import {
   VisualNode, 
   LogicalLocation, 
   Layout,
+  LocationRole,
   ViewMode,
   VisualNodeRole
 } from '../../types';
@@ -703,7 +704,7 @@ export default function EditorSidebarRight({
                           className="w-full bg-slate-900/50 border border-slate-700 text-xs font-black text-slate-300 rounded-xl px-4 py-2.5 outline-none cursor-pointer hover:bg-slate-800 transition-all focus:ring-1 focus:ring-sky-500 appearance-none"
                         >
                           <option value="">Virtual Node (Only)</option>
-                          {locations.filter(l => l.locationType !== 'warehouse' && l.locationType !== 'zone').map(loc => (
+                          {locations.filter(l => l.role !== LocationRole.WAREHOUSE && l.role !== LocationRole.ZONE).map(loc => (
                             <option key={loc.id} value={loc.id}>{loc.code} - {loc.name}</option>
                           ))}
                         </select>
@@ -1367,12 +1368,12 @@ export default function EditorSidebarRight({
                    </div>
                    <div className="flex-1 overflow-hidden">
                       <p className="text-xs font-black text-white uppercase tracking-tight truncate">{selectedLocation?.code || "NULL-POINTER"}</p>
-                      <p className="text-[9px] text-slate-600 font-mono uppercase tracking-widest italic">{selectedLocation?.locationType}</p>
+                      <p className="text-[9px] text-slate-600 font-mono uppercase tracking-widest italic">{selectedLocation?.role}</p>
                    </div>
                 </div>
 
                 <div className="grid grid-cols-2 gap-x-4 gap-y-3 border-t border-slate-750 pt-4">
-                    <Detail label="Volumetric" value={selectedLocation?.allowsStock ? "Allowed" : "Restricted"} />
+                    <Detail label="Volumetric" value={selectedLocation?.capabilities?.canStoreInventory ? "Allowed" : "Restricted"} />
                     <Detail label="SKU Density" value={selectedLocation?.skuCount?.toString() || "0"} />
                     <Detail label="Stock Level" value={selectedLocation?.stockCount?.toString() || "0 UNIT"} />
                     <Detail label="Parent Node" value={locations.find(l => l.id === selectedLocation?.parentId)?.code || "ROOT-SYS"} />

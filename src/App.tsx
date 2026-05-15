@@ -35,6 +35,22 @@ export default function App() {
   const [visuals, setVisuals] = useState<VisualNode[]>(MOCK_VISUALS);
   const [activeLayoutId, setActiveLayoutId] = useState<string | null>(null);
 
+  // Scoped data for general views
+  const branchLocations = useMemo(() => 
+    locations.filter(l => l.branchId === activeBranch.id)
+  , [locations, activeBranch.id]);
+
+  const branchLayouts = useMemo(() => 
+    layouts.filter(l => l.branchId === activeBranch.id)
+  , [layouts, activeBranch.id]);
+
+  const branchVisuals = useMemo(() => 
+    visuals.filter(v => {
+      const layout = layouts.find(lay => lay.id === v.layoutId);
+      return layout?.branchId === activeBranch.id;
+    })
+  , [visuals, layouts, activeBranch.id]);
+
   const activeLayout = useMemo(() => 
     layouts.find(l => l.id === activeLayoutId) || null
   , [layouts, activeLayoutId]);
@@ -47,6 +63,15 @@ export default function App() {
   const handleBackToWorkspaces = () => {
     setCurrentPage('workspaces');
     setActiveLayoutId(null);
+  };
+
+  const handleBranchChange = (branch: Branch) => {
+    setActiveBranch(branch);
+    // Reset selection/active page states when switching branches if needed
+    if (currentPage === 'editor') {
+        setCurrentPage('workspaces');
+        setActiveLayoutId(null);
+    }
   };
 
   const handleCreateLayout = (data: WizardData) => {
@@ -80,14 +105,14 @@ export default function App() {
       nodeRole: VisualNodeRole.LOCATION_REPRESENTATION
     };
 
-    setLayouts([...layouts, newLayout]);
-    setVisuals([...visuals, rootNode]);
+    setLayouts(prev => [...prev, newLayout]);
+    setVisuals(prev => [...prev, rootNode]);
     setActiveLayoutId(newLayout.id);
     setCurrentPage('editor');
   };
 
   const handleCreateLocation = (locationData: LogicalLocation) => {
-    setLocations([...locations, locationData]);
+    setLocations(prev => [...prev, { ...locationData, branchId: activeBranch.id }]);
   };
 
   return (
@@ -96,6 +121,8 @@ export default function App() {
         activePage={currentPage} 
         onNavigate={setCurrentPage} 
         activeBranch={activeBranch}
+        branches={MOCK_BRANCHES}
+        onBranchChange={handleBranchChange}
       />
       
       <main className="flex-1 overflow-hidden relative">
@@ -110,9 +137,9 @@ export default function App() {
               className="h-full"
             >
               <LocationsPage 
-                locations={locations} 
-                visuals={visuals} 
-                layouts={layouts}
+                locations={branchLocations} 
+                visuals={branchVisuals} 
+                layouts={branchLayouts}
                 onNavigateToWorkspace={handleOpenEditor}
                 onCreateLocation={handleCreateLocation}
                 onUpdateLocation={(locData) => {
@@ -132,9 +159,9 @@ export default function App() {
               className="h-full"
             >
               <WorkspacesPage 
-                layouts={layouts} 
-                visuals={visuals} 
-                locations={locations}
+                layouts={branchLayouts} 
+                visuals={branchVisuals} 
+                locations={branchLocations}
                 onOpenLayout={handleOpenEditor}
                 onCreateLayout={handleCreateLayout}
               />
@@ -152,7 +179,7 @@ export default function App() {
             >
               <EditorPage 
                 layout={activeLayout} 
-                locations={locations}
+                locations={branchLocations}
                 visuals={visuals.filter(v => v.layoutId === activeLayout.id)}
                 setVisuals={setVisuals}
                 setLocations={setLocations}

@@ -68,7 +68,7 @@ export default function EditorSidebarLeft({
   const [activeTab, setActiveTab] = useState<Tab>(viewMode === ViewMode.FRONT ? 'structure' : 'visuals');
   
   const rootLocationId = layout.rootLocationId;
-  const [expandedIds, setExpandedIds] = useState<string[]>(rootLocationId ? [rootLocationId] : ['l1']);
+  const [expandedIds, setExpandedIds] = useState<string[]>(rootLocationId ? [rootLocationId] : (locations[0] ? [locations[0].id] : []));
   const [expandedStructureIds, setExpandedStructureIds] = useState<string[]>([]);
 
   const isFrontMode = viewMode === ViewMode.FRONT;
@@ -76,7 +76,7 @@ export default function EditorSidebarLeft({
 
   const toggleSelection = (id: string, isShift: boolean) => {
     if (isShift) {
-      if (selectedIds.includes(id)) {
+      if (selectedIds?.includes(id)) {
         onSelectMultiple(selectedIds.filter(i => i !== id));
       } else {
         onSelectMultiple([...selectedIds, id]);
@@ -170,7 +170,7 @@ export default function EditorSidebarLeft({
                     onSelectCell={(id: string, shift: boolean) => {
                       if (shift) {
                         onSelectFrontCell(prev => 
-                          prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
+                          prev?.includes(id) ? prev.filter(i => i !== id) : [...(prev || []), id]
                         );
                       } else {
                         onSelectFrontCell([id]);
@@ -203,7 +203,7 @@ export default function EditorSidebarLeft({
                   <div 
                     onClick={(e) => toggleSelection(rootVisual.id, e.shiftKey)}
                     className={`flex items-center gap-3 p-3 rounded-xl border transition-all cursor-pointer ${
-                      selectedIds.includes(rootVisual.id) ? 'bg-sky-500/10 border-sky-500/30 text-sky-400' : 'bg-slate-800/40 border-slate-700 hover:border-slate-600 text-slate-400'
+                      selectedIds?.includes(rootVisual.id) ? 'bg-sky-500/10 border-sky-500/30 text-sky-400' : 'bg-slate-800/40 border-slate-700 hover:border-slate-600 text-slate-400'
                     }`}
                   >
                      <div className="w-10 h-10 rounded-lg bg-slate-900 flex items-center justify-center border border-slate-700 shrink-0">
@@ -225,7 +225,7 @@ export default function EditorSidebarLeft({
                   <VisualListItem 
                     key={visual.id} 
                     visual={visual} 
-                    selected={selectedIds.includes(visual.id)} 
+                    selected={selectedIds?.includes(visual.id)} 
                     onSelect={(shift: boolean) => toggleSelection(visual.id, shift)} 
                     onClone={() => onCloneNode?.(visual.id)}
                     onUpdate={(updates: Partial<VisualNode>) => onUpdateNode?.(visual.id, updates)}
@@ -355,8 +355,8 @@ function LocationTreeItem({
   depth 
 }: any) {
   const children = allLocations.filter((l: any) => l.parentId === location.id);
-  const isExpanded = expandedIds.includes(location.id);
-  const isSelected = selectedIds.includes(location.id) || selectedId === location.id;
+  const isExpanded = expandedIds?.includes(location.id);
+  const isSelected = selectedIds?.includes(location.id) || selectedId === location.id;
   
   const isMappedTopDown = visuals.some((v: any) => v.locationId === location.id);
   const isMappedFrontCell = visuals.some((v: any) => {
@@ -375,7 +375,7 @@ function LocationTreeItem({
   const toggle = (e: any) => {
     e.stopPropagation();
     setExpandedIds((prev: any) => 
-      prev.includes(location.id) ? prev.filter((i: any) => i !== location.id) : [...prev, location.id]
+      prev?.includes(location.id) ? prev.filter((i: any) => i !== location.id) : [...(prev || []), location.id]
     );
   };
 

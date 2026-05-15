@@ -8,7 +8,7 @@ import {
   VisualNode, 
   LogicalLocation, 
   ViewMode, 
-  LocationType,
+  LocationRole,
   VisualNodeRole
 } from '../../types';
 import { getAllDividers } from '../../lib/structureUtils';
@@ -96,7 +96,7 @@ export default function EditorPage({
   , [layoutVisuals, selectedNodeId]);
 
   const selectedNodes = useMemo(() => 
-    layoutVisuals.filter(v => selectedNodeIds.includes(v.id))
+    layoutVisuals.filter(v => selectedNodeIds?.includes(v.id))
   , [layoutVisuals, selectedNodeIds]);
 
   const selectedLocation = useMemo(() => {
@@ -158,15 +158,25 @@ export default function EditorPage({
     if (data.type === 'location' || data.type === 'both') {
         const newLoc: LogicalLocation = {
             id: `l-${newId}`,
+            branchId: layout.branchId,
             code: data.code || `NEW-${newId.slice(-4)}`,
             name: data.name || data.label || 'New Location',
-            parentId: null,
-            locationType: data.locationType || LocationType.RACK,
-            allowsStock: true,
-            isReceivable: true,
-            isPickable: true,
-            isVirtual: false,
-            status: 'active'
+            parentId: data.parentId === 'ROOT-SYS' ? null : (data.parentId || null),
+            role: data.role || LocationRole.STORAGE,
+            capabilities: {
+                canStoreInventory: true,
+                canReceive: true,
+                canPick: true,
+                canShip: false,
+                canReserve: true,
+                isVirtual: false,
+                isTemporary: false
+            },
+            status: 'active',
+            pathCode: data.code || `NEW-${newId.slice(-4)}`,
+            pathName: data.name || data.label || 'New Location',
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString()
         };
         setLocations(prev => [...prev, newLoc]);
     }
@@ -399,15 +409,25 @@ export default function EditorPage({
                     const newLocId = `l-gen-${Date.now()}`;
                     setLocations(prev => [...prev, {
                         id: newLocId,
+                        branchId: layout.branchId,
                         code: `LOC-${selectedNode.label.toUpperCase()}`,
                         name: selectedNode.label,
                         parentId: null,
-                        locationType: LocationType.RACK,
-                        allowsStock: true,
-                        isReceivable: true,
-                        isPickable: true,
-                        isVirtual: false,
-                        status: 'active'
+                        role: LocationRole.STORAGE,
+                        capabilities: {
+                            canStoreInventory: true,
+                            canReceive: true,
+                            canPick: true,
+                            canShip: false,
+                            canReserve: true,
+                            isVirtual: false,
+                            isTemporary: false
+                        },
+                        status: 'active',
+                        pathCode: `LOC-${selectedNode.label.toUpperCase()}`,
+                        pathName: selectedNode.label,
+                        createdAt: new Date().toISOString(),
+                        updatedAt: new Date().toISOString()
                     }]);
                     setVisuals(prev => prev.map(v => v.id === selectedNode.id ? { ...v, locationId: newLocId } : v));
                 }
@@ -444,15 +464,25 @@ export default function EditorPage({
                       const newLocId = `l-gen-${Date.now()}`;
                       setLocations(prev => [...prev, {
                           id: newLocId,
+                          branchId: layout.branchId,
                           code: `LOC-${selectedNode.label.toUpperCase()}`,
                           name: selectedNode.label,
                           parentId: null,
-                          locationType: LocationType.RACK,
-                          allowsStock: true,
-                          isReceivable: true,
-                          isPickable: true,
-                          isVirtual: false,
-                          status: 'active'
+                          role: LocationRole.STORAGE,
+                          capabilities: {
+                              canStoreInventory: true,
+                              canReceive: true,
+                              canPick: true,
+                              canShip: false,
+                              canReserve: true,
+                              isVirtual: false,
+                              isTemporary: false
+                          },
+                          status: 'active',
+                          pathCode: `LOC-${selectedNode.label.toUpperCase()}`,
+                          pathName: selectedNode.label,
+                          createdAt: new Date().toISOString(),
+                          updatedAt: new Date().toISOString()
                       }]);
                       setVisuals(prev => prev.map(v => v.id === selectedNode.id ? { ...v, locationId: newLocId } : v));
                   }

@@ -72,29 +72,64 @@ export interface LocationWarning {
   description?: string;
 }
 
+export enum LocationRole {
+  WAREHOUSE = 'WAREHOUSE',
+  ZONE = 'ZONE',
+  AISLE = 'AISLE',
+  RACK = 'RACK',
+  SHELF = 'SHELF',
+  BIN = 'BIN',
+  STAGING = 'STAGING',
+  RECEIVING = 'RECEIVING',
+  SHIPPING = 'SHIPPING',
+  RETURNS = 'RETURNS',
+  QUARANTINE = 'QUARANTINE',
+  TRANSIT = 'TRANSIT',
+  ADJUSTMENT = 'ADJUSTMENT',
+  VIRTUAL = 'VIRTUAL',
+  STORAGE = 'STORAGE',
+  OTHER = 'OTHER'
+}
+
+export interface LocationCapabilities {
+  canStoreInventory: boolean;
+  canReceive: boolean;
+  canPick: boolean;
+  canShip: boolean;
+  canReserve: boolean;
+  isVirtual: boolean;
+  isTemporary: boolean;
+}
+
 export interface LogicalLocation {
   id: string;
+  branchId: string;
+  parentId: string | null;
   code: string;
   name: string;
   description?: string;
-  parentId: string | null;
-  locationType: LocationType;
-  status: 'active' | 'inactive' | 'archived';
-  allowsStock: boolean;
-  isReceivable: boolean;
-  isPickable: boolean;
-  isVirtual: boolean;
-  qrCodeValue?: string;
-  barcodeValue?: string;
-  sortOrder?: number;
-  stockCount?: number;
-  skuCount?: number;
+  pathCode: string;
+  pathName: string;
+  status: 'active' | 'inactive' | 'archived' | 'locked';
+  role: LocationRole;
+  capabilities: LocationCapabilities;
+  physical?: {
+    qrCode?: string;
+    notes?: string;
+  };
+  // UI and legacy fields
   icon?: string;
   color?: string;
+  isVirtual?: boolean;
+  sortOrder?: number;
   physicalMetadata?: PhysicalMetadata;
   assignment?: LocationAssignment;
+  stockCount?: number;
+  skuCount?: number;
   warnings?: LocationWarning[];
-  mappedVisualizationCount?: number;
+  createdAt: string;
+  updatedAt: string;
+  deletedAt?: string;
 }
 
 export interface LayoutSplitDivider {
@@ -132,7 +167,7 @@ export interface StructureNode {
 }
 
 export type ZonePattern = 'solid' | 'stripes-thin' | 'stripes-wide' | 'dots' | 'grid' | 'diagonal-thin' | 'diagonal-wide';
-export type ZoneType = 'no_access' | 'elevator' | 'stairs' | 'operational' | 'storage' | 'infrastructure';
+export type ZoneType = 'no_access' | 'elevator' | 'stairs' | 'operational' | 'storage' | 'infrastructure' | 'quarantine';
 
 export interface VisualNodeStyle {
   cornerRadiusTopLeft?: number;

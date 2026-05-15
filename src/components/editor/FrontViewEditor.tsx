@@ -33,7 +33,7 @@ import {
   Box as BoxIcon,
   MousePointer
 } from 'lucide-react';
-import { VisualNode, StructureNode, LogicalLocation, LayoutSplitDivider } from '../../types';
+import { VisualNode, StructureNode, LogicalLocation, LayoutSplitDivider, LocationRole } from '../../types';
 import { cn } from "@/lib/utils";
 import { SECTION_SKINS, SectionSkin } from '../../constants/skins';
 import {
@@ -941,9 +941,8 @@ export default function FrontViewEditor({
     collectUsed(structure);
 
     const unlinkedLocations = locations.filter(l => 
-      l.locationType !== 'warehouse' && 
-      l.locationType !== 'zone' &&
-      (l.mappedVisualizationCount || 0) === 0 &&
+      l.role !== LocationRole.WAREHOUSE && 
+      l.role !== LocationRole.ZONE &&
       !usedInThisStructure.has(l.id)
     );
 
@@ -1195,19 +1194,29 @@ export default function FrontViewEditor({
     const newLocations: LogicalLocation[] = [];
     const parentLocId = node.locationId;
 
-    const createLoc = (label: string, code: string, type: string) => {
+    const createLoc = (label: string, code: string, role: string) => {
       const id = `l-${Math.random().toString(36).substr(2, 9)}`;
       newLocations.push({
         id,
+        branchId: locations[0]?.branchId || 'main-branch',
         code: code,
         name: `${node.label} - ${label}`,
         parentId: parentLocId,
-        locationType: type as any,
-        allowsStock: true,
-        isReceivable: true,
-        isPickable: true,
-        isVirtual: false,
-        status: 'active'
+        role: role as any,
+        capabilities: {
+            canStoreInventory: true,
+            canReceive: true,
+            canPick: true,
+            canShip: false,
+            canReserve: true,
+            isVirtual: false,
+            isTemporary: false
+        },
+        status: 'active',
+        pathCode: code,
+        pathName: `${node.label} - ${label}`,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
       });
       return id;
     };
@@ -1552,7 +1561,7 @@ export default function FrontViewEditor({
 
   const renderRecursive = (sNode: StructureNode): React.ReactNode => {
     if (sNode.type === 'cell') {
-      const isSelected = selectedCellIds.includes(sNode.id);
+      const isSelected = selectedCellIds?.includes(sNode.id);
       const linkedLocation = sNode.locationId ? locations.find(l => l.id === sNode.locationId) : null;
       const skin = sNode.skin ? SECTION_SKINS.find(s => s.id === sNode.skin) : null;
 
@@ -1564,7 +1573,7 @@ export default function FrontViewEditor({
             e.stopPropagation();
             if (e.shiftKey) {
               onSelectCells(prev => 
-                prev.includes(sNode.id) ? prev.filter(id => id !== sNode.id) : [...prev, sNode.id]
+                prev?.includes(sNode.id) ? prev.filter(id => id !== sNode.id) : [...(prev || []), sNode.id]
               );
             } else {
               onSelectCells([sNode.id]);
@@ -1657,7 +1666,7 @@ export default function FrontViewEditor({
                   className={cn(
                     "relative transition-all !bg-opacity-100",
                     isHandleLocked && "opacity-80 pointer-events-none",
-                    selectedDividerIds.includes(divider?.id || '') ? "ring-2 ring-sky-500 z-30" : "hover:bg-sky-500/30",
+                    selectedDividerIds?.includes(divider?.id || '') ? "ring-2 ring-sky-500 z-30" : "hover:bg-sky-500/30",
                     divider?.type === 'gap' && "border-slate-800/20 shadow-inner"
                   )}
                   onClick={(e) => {
@@ -1666,7 +1675,7 @@ export default function FrontViewEditor({
                       e.stopPropagation();
                       if (e.metaKey || e.ctrlKey) {
                         onSelectDividers(
-                          selectedDividerIds.includes(divider.id) ? selectedDividerIds.filter(id => id !== divider.id) : [...selectedDividerIds, divider.id]
+                          selectedDividerIds?.includes(divider.id) ? selectedDividerIds.filter(id => id !== divider.id) : [...(selectedDividerIds || []), divider.id]
                         );
                       } else {
                         onSelectDividers([divider.id]);
@@ -1703,7 +1712,7 @@ export default function FrontViewEditor({
            {top && (
              <div 
                onClick={(e) => { e.stopPropagation(); onSelectDividers([top.id]); onSelectCells([]); }}
-               className={`shrink-0 transition-all cursor-pointer ${selectedDividerIds.includes(top.id) ? 'ring-2 ring-sky-500 z-30' : 'hover:bg-sky-500/10'}`}
+               className={`shrink-0 transition-all cursor-pointer ${selectedDividerIds?.includes(top.id) ? 'ring-2 ring-sky-500 z-30' : 'hover:bg-sky-500/10'}`}
                style={{ height: `${top.thickness * totalScale}px`, backgroundColor: top.type === 'solid' ? top.color || '#1e293b' : 'transparent' }}
              />
            )}
@@ -1711,7 +1720,7 @@ export default function FrontViewEditor({
               {left && (
                 <div 
                   onClick={(e) => { e.stopPropagation(); onSelectDividers([left.id]); onSelectCells([]); }}
-                  className={`shrink-0 transition-all cursor-pointer ${selectedDividerIds.includes(left.id) ? 'ring-2 ring-sky-500 z-30' : 'hover:bg-sky-500/10'}`}
+                  className={`shrink-0 transition-all cursor-pointer ${selectedDividerIds?.includes(left.id) ? 'ring-2 ring-sky-500 z-30' : 'hover:bg-sky-500/10'}`}
                   style={{ width: `${left.thickness * totalScale}px`, backgroundColor: left.type === 'solid' ? left.color || '#1e293b' : 'transparent' }}
                 />
               )}
@@ -1722,7 +1731,7 @@ export default function FrontViewEditor({
               {right && (
                 <div 
                   onClick={(e) => { e.stopPropagation(); onSelectDividers([right.id]); onSelectCells([]); }}
-                  className={`shrink-0 transition-all cursor-pointer ${selectedDividerIds.includes(right.id) ? 'ring-2 ring-sky-500 z-30' : 'hover:bg-sky-500/10'}`}
+                  className={`shrink-0 transition-all cursor-pointer ${selectedDividerIds?.includes(right.id) ? 'ring-2 ring-sky-500 z-30' : 'hover:bg-sky-500/10'}`}
                   style={{ width: `${right.thickness * totalScale}px`, backgroundColor: right.type === 'solid' ? right.color || '#1e293b' : 'transparent' }}
                 />
               )}
@@ -1730,7 +1739,7 @@ export default function FrontViewEditor({
            {bottom && (
              <div 
                onClick={(e) => { e.stopPropagation(); onSelectDividers([bottom.id]); onSelectCells([]); }}
-               className={`shrink-0 transition-all cursor-pointer ${selectedDividerIds.includes(bottom.id) ? 'ring-2 ring-sky-500 z-30' : 'hover:bg-sky-500/10'}`}
+               className={`shrink-0 transition-all cursor-pointer ${selectedDividerIds?.includes(bottom.id) ? 'ring-2 ring-sky-500 z-30' : 'hover:bg-sky-500/10'}`}
                style={{ height: `${bottom.thickness * totalScale}px`, backgroundColor: bottom.type === 'solid' ? bottom.color || '#1e293b' : 'transparent' }}
              />
            )}
