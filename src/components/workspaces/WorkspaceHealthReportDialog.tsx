@@ -141,6 +141,18 @@ export default function WorkspaceHealthReportDialog({ layout, visuals, locations
                             <div className="px-2 py-1 rounded bg-sky-500/10 text-[10px] font-black uppercase tracking-widest text-sky-400">Out of Root</div>
                          </div>
                        ))}
+                       {report.details.unassignedStorageObjects.map((m, i) => (
+                         <div key={`storage-${i}`} className="p-4 rounded-xl bg-amber-500/5 border border-amber-500/10 flex items-start justify-between gap-4">
+                            <div className="space-y-1">
+                               <p className="text-xs font-bold text-amber-500 uppercase">Unassigned Storage Object</p>
+                               <p className="text-sm text-white font-medium">
+                                 {m.label}
+                               </p>
+                               <p className="text-[10px] text-slate-500 font-mono">Visual object of type '{m.type}' has no logical location link.</p>
+                            </div>
+                            <div className="px-2 py-1 rounded bg-amber-500/10 text-[10px] font-black uppercase tracking-widest text-amber-500">Mapping Needed</div>
+                         </div>
+                       ))}
                        {report.details.duplicateMappings.map((m, i) => (
                          <div key={i} className="p-4 rounded-xl bg-amber-500/5 border border-amber-500/10 space-y-3">
                             <div className="flex items-start justify-between">

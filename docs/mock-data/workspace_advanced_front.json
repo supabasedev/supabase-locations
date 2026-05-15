@@ -1,0 +1,65 @@
+{
+  "layout": {
+    "id": "lay-adv-front",
+    "name": "Precision Picking Rack Prototype",
+    "rootLocationId": "wh-01-z1-r01",
+    "status": "draft",
+    "lastEdited": "2026-05-14T13:00:00Z"
+  },
+  "visuals": [
+    {
+      "id": "v-adv-rack",
+      "layoutId": "lay-adv-front",
+      "locationId": "wh-01-z1-r01",
+      "type": "industrial",
+      "label": "Master Rack",
+      "x": 0, "y": 0, "z": 0,
+      "width": 200, "height": 400, "depth": 80,
+      "color": "#334155",
+      "viewMode": "front",
+      "parentId": null,
+      "nodeRole": "location_representation",
+      "supportsFrontView": true,
+      "frontSetupDone": true,
+      "structure": {
+        "id": "s-root",
+        "type": "container",
+        "split": "vertical",
+        "splitType": "columns",
+        "size": 1,
+        "children": [
+          {
+            "id": "col-1",
+            "type": "container",
+            "split": "horizontal",
+            "splitType": "shelves",
+            "size": 1,
+            "children": [
+              { "id": "cell-1-1", "type": "cell", "size": 1, "label": "Bin A-R01-S1-01", "locationId": "wh-01-z1-r01-s1-b01", "displayLabel": "B01" },
+              { "id": "cell-1-2", "type": "cell", "size": 1, "label": "Vacant Slot", "displayLabel": "EMPTY" }
+            ],
+            "dividers": [
+              { "id": "d-1-1", "type": "solid", "thickness": 2, "color": "#000000" }
+            ],
+            "frame": {
+              "left": { "id": "f-l", "type": "frame", "thickness": 5, "color": "#1e293b" }
+            }
+          },
+          {
+            "id": "col-2",
+            "type": "container",
+            "split": "horizontal",
+            "size": 2,
+            "children": [
+              { "id": "cell-2-1", "type": "cell", "size": 3, "label": "Large Item Bay", "displayLabel": "BAY-L" },
+              { "id": "cell-2-2", "type": "cell", "size": 1, "label": "Small Parts", "displayLabel": "SP-01" }
+            ]
+          }
+        ],
+        "dividers": [
+          { "id": "d-main", "type": "frame", "thickness": 4, "color": "#475569" }
+        ]
+      }
+    }
+  ]
+}

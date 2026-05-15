@@ -17,18 +17,20 @@ interface AddObjectModalProps {
   onSubmit: (data: any) => void;
   locations: LogicalLocation[];
   forceMode?: Mode;
+  initialLocationId?: string;
 }
 
-type Mode = 'visual' | 'location' | 'both';
+type Mode = 'existing' | 'visual' | 'both' | 'location';
 
-export default function AddObjectModal({ onClose, onSubmit, locations, forceMode }: AddObjectModalProps) {
-  const [mode, setMode] = useState<Mode>(forceMode || 'visual');
+export default function AddObjectModal({ onClose, onSubmit, locations, forceMode, initialLocationId }: AddObjectModalProps) {
+  const [mode, setMode] = useState<Mode>(forceMode || (initialLocationId ? 'existing' : 'both'));
   const [formData, setFormData] = useState({
     label: '',
     code: '',
     name: '',
     locationType: LocationType.RACK,
     parentId: '',
+    locationId: initialLocationId || '',
     dimensions: { width: 100, height: 200, depth: 60 } // These are now in CM
   });
 
@@ -59,31 +61,38 @@ export default function AddObjectModal({ onClose, onSubmit, locations, forceMode
            {!forceMode ? (
              <>
                <TabItem 
-                 active={mode === 'visual'} 
-                 onClick={() => setMode('visual')} 
-                 icon={<Layers />} 
-                 label="Visual Object" 
-                 description="Plan spatially"
-               />
-               <TabItem 
-                 active={mode === 'location'} 
-                 onClick={() => setMode('location')} 
+                 active={mode === 'existing'} 
+                 onClick={() => setMode('existing')} 
                  icon={<Database />} 
-                 label="Location" 
-                 description="Logic entity"
+                 label="Visualize" 
+                 description="Existing Location"
                />
                <TabItem 
                  active={mode === 'both'} 
                  onClick={() => setMode('both')} 
                  icon={<LinkIcon />} 
-                 label="Linked Object" 
-                 description="Unified entry"
+                 label="Both" 
+                 description="New Logic + Visual"
+               />
+               <TabItem 
+                 active={mode === 'visual'} 
+                 onClick={() => setMode('visual')} 
+                 icon={<Layers />} 
+                 label="Visual Only" 
+                 description="Infrastructure"
+               />
+               <TabItem 
+                 active={mode === 'location'} 
+                 onClick={() => setMode('location')} 
+                 icon={<Grid />} 
+                 label="Logic Only" 
+                 description="Unmapped entry"
                />
              </>
            ) : (
              <div className="flex-1 p-6 flex items-center gap-3">
                 <Database className="w-5 h-5 text-sky-500" />
-                <span className="text-sm font-bold text-white uppercase tracking-widest">Create Location Entity</span>
+                <span className="text-sm font-bold text-white uppercase tracking-widest">Add Object Flow</span>
              </div>
            )}
            <button onClick={onClose} className="p-6 text-slate-500 hover:text-white border-l border-slate-800 transition-colors">
@@ -93,6 +102,13 @@ export default function AddObjectModal({ onClose, onSubmit, locations, forceMode
 
         <div className="p-8 space-y-8 flex-1 overflow-y-auto max-h-[70vh] scrollbar-thin scrollbar-thumb-slate-800 font-sans">
            
+           {mode === 'existing' && (
+              <ModeBanner 
+                text="Visualize an existing logical location anchor on the Top-Down map." 
+                icon={<Database className="w-4 h-4" />}
+                color="sky"
+              />
+           )}
            {mode === 'visual' && (
               <ModeBanner 
                 text="Spatial planning active. You can bind logical anchors to this primitive later." 
@@ -103,7 +119,7 @@ export default function AddObjectModal({ onClose, onSubmit, locations, forceMode
            {mode === 'location' && (
               <ModeBanner 
                 text="Synthesizing logical inventory unit. This will exist independently of plan visualization." 
-                icon={<Database className="w-4 h-4" />}
+                icon={<Grid className="w-4 h-4" />}
                 color="sky"
               />
            )}
@@ -116,7 +132,22 @@ export default function AddObjectModal({ onClose, onSubmit, locations, forceMode
            )}
 
            <div className="grid grid-cols-2 gap-6">
-              {(mode === 'visual' || mode === 'both') && (
+              {mode === 'existing' && (
+                <div className="col-span-2 space-y-4">
+                  <Select 
+                    label="Target Location"
+                    options={locations.map(l => l.id)}
+                    displayOptions={locations.map(l => l.code)}
+                    value={formData.locationId}
+                    onChange={(v) => {
+                      const loc = locations.find(l => l.id === v);
+                      setFormData({ ...formData, locationId: v, label: loc?.code || '' });
+                    }}
+                  />
+                </div>
+              )}
+
+              {(mode === 'visual' || mode === 'both' || mode === 'existing') && (
                 <div className="col-span-2 space-y-4">
                    <Input 
                      label="Node Label" 
@@ -149,7 +180,8 @@ export default function AddObjectModal({ onClose, onSubmit, locations, forceMode
                     />
                     <Select 
                       label="Parent Node Anchor"
-                      options={['ROOT-SYS', ...locations.map(l => l.code)]}
+                      options={['ROOT-SYS', ...locations.map(l => l.id)]}
+                      displayOptions={['ROOT-SYS', ...locations.map(l => l.code)]}
                       value={formData.parentId}
                       onChange={(v) => setFormData({ ...formData, parentId: v })}
                     />
@@ -247,7 +279,7 @@ function Input({ label, placeholder, value, unit, onChange }: { label: string, p
   );
 }
 
-function Select({ label, options, value, onChange }: { label: string, options: string[], value: string, onChange: (v: string) => void }) {
+function Select({ label, options, displayOptions, value, onChange }: { label: string, options: string[], displayOptions?: string[], value: string, onChange: (v: string) => void }) {
   return (
     <div className="space-y-2">
        <label className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-600">{label}</label>
@@ -257,7 +289,11 @@ function Select({ label, options, value, onChange }: { label: string, options: s
             onChange={(e) => onChange(e.target.value)}
             className="w-full bg-slate-800 border border-slate-750 rounded-xl py-3 px-4 text-xs font-bold text-white focus:ring-1 focus:ring-sky-500/50 outline-none transition-all appearance-none cursor-pointer"
           >
-            {options.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+            {options.map((opt, i) => (
+              <option key={opt} value={opt}>
+                {displayOptions ? displayOptions[i] : opt}
+              </option>
+            ))}
           </select>
           <div className="absolute right-4 top-4 pointer-events-none text-slate-600 group-hover:text-sky-500 transition-colors">
              <ChevronRight className="w-3.5 h-3.5 rotate-90" />

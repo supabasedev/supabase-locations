@@ -1,0 +1,52 @@
+{
+  "layout": {
+    "id": "lay-infra",
+    "name": "Safety & Infrastructure Plan",
+    "rootLocationId": "wh-01",
+    "status": "published",
+    "lastEdited": "2026-05-14T14:00:00Z"
+  },
+  "visuals": [
+    {
+      "id": "pillar-1",
+      "layoutId": "lay-infra",
+      "locationId": null,
+      "type": "rectangle",
+      "label": "Structural Pillar P01",
+      "x": 200, "y": 0, "z": 0,
+      "width": 60, "height": 600, "depth": 60,
+      "color": "#94a3b8",
+      "viewMode": "top-down",
+      "parentId": null,
+      "nodeRole": "infrastructure"
+    },
+    {
+      "id": "wall-north",
+      "layoutId": "lay-infra",
+      "locationId": null,
+      "type": "rectangle",
+      "label": "Exterior Wall North",
+      "x": 0, "y": 0, "z": 0,
+      "width": 5000, "height": 800, "depth": 30,
+      "color": "#334155",
+      "viewMode": "top-down",
+      "parentId": null,
+      "nodeRole": "infrastructure"
+    },
+    {
+      "id": "stairs-a",
+      "layoutId": "lay-infra",
+      "locationId": null,
+      "type": "zone",
+      "label": "Stairs to Mezzanine",
+      "x": 1000, "y": 0, "z": 0,
+      "width": 200, "height": 20, "depth": 400,
+      "color": "#f1f5f9",
+      "zoneType": "stairs",
+      "zonePattern": "diagonal-thin",
+      "viewMode": "top-down",
+      "parentId": null,
+      "nodeRole": "infrastructure"
+    }
+  ]
+}

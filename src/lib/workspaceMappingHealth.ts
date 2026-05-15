@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { VisualNode, LogicalLocation, StructureNode, LocationType, Layout } from '../types';
+import { VisualNode, LogicalLocation, StructureNode, LocationType, Layout, VisualNodeRole } from '../types';
 
 export interface MappingHealthReport {
   timestamp: string;
@@ -63,7 +63,7 @@ export interface MappingHealthReport {
       locationCode: string;
       reason: 'stock_allows_with_children' | 'ambiguous_mapping';
     }[];
-    infrastructureNodesWithoutLocations: {
+    unassignedStorageObjects: {
       id: string;
       label: string;
       type: string;
@@ -122,7 +122,7 @@ export function analyzeWorkspaceMappingHealth(
       duplicateMappings: [],
       hierarchyViolations: [],
       storageConflicts: [],
-      infrastructureNodesWithoutLocations: [],
+      unassignedStorageObjects: [],
     },
     recommendations: [],
   };
@@ -173,10 +173,16 @@ export function analyzeWorkspaceMappingHealth(
         report.coverage.outOfScopeCount++;
       }
     } else {
-      // Heuristic for missing location on potential storage object
+      // Logic for unmapped visual objects based on nodeRole
+      const isStorageLike = node.nodeRole === VisualNodeRole.UNASSIGNED_STORAGE || 
+                          node.nodeRole === VisualNodeRole.LOCATION_REPRESENTATION;
+      
+      // Heuristic fallback if nodeRole is missing
       const storageTypes = ['rack', 'shelf', 'industrial'];
-      if (storageTypes.includes(node.type) || node.label.toLowerCase().includes('rack') || node.label.toLowerCase().includes('shelf')) {
-         report.details.infrastructureNodesWithoutLocations.push({
+      const heuristicIsStorage = !node.nodeRole && (storageTypes.includes(node.type) || node.label.toLowerCase().includes('rack') || node.label.toLowerCase().includes('shelf'));
+
+      if ((isStorageLike || heuristicIsStorage) && !node.locationId) {
+         report.details.unassignedStorageObjects.push({
             id: node.id,
             label: node.label,
             type: node.type
@@ -325,8 +331,8 @@ export function analyzeWorkspaceMappingHealth(
   if (report.summary.storageConflicts > 0) {
     report.recommendations.push(`${report.summary.storageConflicts} locations allow stock while containing sub-locations. Prefer leaf-only stock assignment.`);
   }
-  if (report.details.infrastructureNodesWithoutLocations.length > 0) {
-    report.recommendations.push(`${report.details.infrastructureNodesWithoutLocations.length} storage-like visual objects (racks/shelves) have no logical location assigned.`);
+  if (report.details.unassignedStorageObjects.length > 0) {
+    report.recommendations.push(`${report.details.unassignedStorageObjects.length} storage objects have no logical location assigned.`);
   }
 
   return report;

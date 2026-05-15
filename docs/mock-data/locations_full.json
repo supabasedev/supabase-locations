@@ -1,0 +1,99 @@
+[
+  {
+    "id": "root-corp",
+    "code": "CORP-GLOBAL",
+    "name": "Corporate Logistics",
+    "parentId": null,
+    "locationType": "warehouse",
+    "allowsStock": false,
+    "isReceivable": false,
+    "isPickable": false,
+    "status": "active"
+  },
+  {
+    "id": "wh-01",
+    "code": "WH-BERLIN",
+    "name": "Berlin Central DC",
+    "parentId": "root-corp",
+    "locationType": "warehouse",
+    "allowsStock": false,
+    "isReceivable": true,
+    "isPickable": true,
+    "status": "active"
+  },
+  {
+    "id": "wh-01-z1",
+    "code": "WH-01-ZONE-A",
+    "name": "Hall A (Ambient)",
+    "parentId": "wh-01",
+    "locationType": "zone",
+    "allowsStock": false,
+    "isReceivable": true,
+    "isPickable": true,
+    "status": "active"
+  },
+  {
+    "id": "wh-01-z2",
+    "code": "WH-01-ZONE-B",
+    "name": "Hall B (Cold Storage)",
+    "parentId": "wh-01",
+    "locationType": "zone",
+    "allowsStock": false,
+    "isReceivable": false,
+    "isPickable": true,
+    "status": "active"
+  },
+  {
+    "id": "wh-01-z1-r01",
+    "code": "A-R01",
+    "name": "Rack 01 - Bulk",
+    "parentId": "wh-01-z1",
+    "locationType": "rack",
+    "allowsStock": false,
+    "isReceivable": false,
+    "isPickable": true,
+    "status": "active"
+  },
+  {
+    "id": "wh-01-z1-r01-s1",
+    "code": "A-R01-S1",
+    "name": "Shelf 01",
+    "parentId": "wh-01-z1-r01",
+    "locationType": "shelf",
+    "allowsStock": true,
+    "isReceivable": false,
+    "isPickable": true,
+    "status": "active"
+  },
+  {
+    "id": "wh-01-z1-r01-s1-b01",
+    "code": "A-R01-S1-01",
+    "name": "Bin 01",
+    "parentId": "wh-01-z1-r01-s1",
+    "locationType": "bin",
+    "allowsStock": true,
+    "isReceivable": false,
+    "isPickable": true,
+    "status": "active"
+  },
+  {
+    "id": "wh-02",
+    "code": "WH-PARIS",
+    "name": "Paris Last Mile",
+    "parentId": "root-corp",
+    "locationType": "warehouse",
+    "allowsStock": false,
+    "isReceivable": true,
+    "status": "active"
+  },
+  {
+    "id": "virtual-returns",
+    "code": "V-RETS",
+    "name": "Virtual Returns Bin",
+    "parentId": "root-corp",
+    "locationType": "bin",
+    "isVirtual": true,
+    "allowsStock": true,
+    "status": "active"
+  }
+]

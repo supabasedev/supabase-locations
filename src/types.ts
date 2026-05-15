@@ -37,6 +37,14 @@ export enum ViewMode {
   FRONT = 'front'
 }
 
+export enum VisualNodeRole {
+  LOCATION_REPRESENTATION = 'location_representation',
+  UNASSIGNED_STORAGE = 'unassigned_storage',
+  INFRASTRUCTURE = 'infrastructure',
+  ANNOTATION = 'annotation',
+  OBSTACLE = 'obstacle'
+}
+
 export interface Dimensions {
   width: number;
   height: number;
@@ -164,11 +172,13 @@ export interface VisualNode {
   zoneType?: ZoneType;
   opacity?: number;
   locked?: boolean;
+  nodeRole?: VisualNodeRole;
 }
 
 export interface Layout {
   id: string;
   branchId: string;
+  rootLocationId?: string | null;
   name: string;
   status: 'draft' | 'published';
   lastEdited: string;

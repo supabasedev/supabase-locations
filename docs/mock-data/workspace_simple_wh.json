@@ -1,0 +1,75 @@
+{
+  "layout": {
+    "id": "lay-simple-wh",
+    "name": "Berlin DC - Main Floor",
+    "rootLocationId": "wh-01",
+    "status": "published",
+    "lastEdited": "2026-05-14T12:00:00Z"
+  },
+  "visuals": [
+    {
+      "id": "v-floor",
+      "layoutId": "lay-simple-wh",
+      "locationId": "wh-01",
+      "type": "rectangle",
+      "label": "Berlin Hub Floor",
+      "x": 0, "y": 0, "z": 0,
+      "width": 5000, "height": 10, "depth": 3000,
+      "color": "#1e293b",
+      "viewMode": "top-down",
+      "parentId": null,
+      "nodeRole": "infrastructure"
+    },
+    {
+      "id": "v-zone-a",
+      "layoutId": "lay-simple-wh",
+      "locationId": "wh-01-z1",
+      "type": "zone",
+      "label": "Hall A",
+      "x": 100, "y": 0, "z": 1,
+      "width": 2000, "height": 100, "depth": 2000,
+      "color": "#0ea5e9",
+      "primaryOpacity": 0.1,
+      "viewMode": "top-down",
+      "parentId": "v-floor",
+      "nodeRole": "location_representation"
+    },
+    {
+      "id": "v-rack-1",
+      "layoutId": "lay-simple-wh",
+      "locationId": "wh-01-z1-r01",
+      "type": "industrial",
+      "label": "Rack A-01",
+      "x": 500, "y": 0, "z": 2,
+      "width": 300, "height": 250, "depth": 100,
+      "color": "#cbd5e1",
+      "viewMode": "top-down",
+      "parentId": "v-zone-a",
+      "nodeRole": "location_representation",
+      "supportsFrontView": true,
+      "frontSetupDone": true,
+      "structure": {
+        "id": "root-struct",
+        "type": "container",
+        "split": "horizontal",
+        "size": 1,
+        "children": [
+          {
+            "id": "shelf-1",
+            "type": "cell",
+            "size": 1,
+            "locationId": "wh-01-z1-r01-s1",
+            "label": "Shelf 01",
+            "displayLabel": "S1"
+          },
+          {
+            "id": "shelf-2",
+            "type": "cell",
+            "size": 1,
+            "label": "Unmapped Space"
+          }
+        ]
+      }
+    }
+  ]
+}

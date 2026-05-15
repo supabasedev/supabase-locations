@@ -3,7 +3,8 @@ import {
   LocationType, 
   Layout, 
   VisualNode, 
-  ViewMode 
+  ViewMode,
+  VisualNodeRole
 } from './types';
 
 export const MOCK_BRANCHES = [
@@ -96,6 +97,7 @@ export const MOCK_LAYOUTS: Layout[] = [
   {
     id: 'lay1',
     branchId: 'b1',
+    rootLocationId: 'l1',
     name: 'Regional DC - Hall A',
     status: 'published',
     lastEdited: '2024-05-08 10:30'
@@ -103,6 +105,7 @@ export const MOCK_LAYOUTS: Layout[] = [
   {
     id: 'lay2',
     branchId: 'b2',
+    rootLocationId: 'l1',
     name: 'Precision Gear Workshop',
     status: 'draft',
     lastEdited: '2024-05-08 11:05'
@@ -126,7 +129,8 @@ export const MOCK_VISUALS: VisualNode[] = [
     depth: 1200,
     color: '#111827',
     viewMode: ViewMode.TOP_DOWN,
-    parentId: null
+    parentId: null,
+    nodeRole: VisualNodeRole.LOCATION_REPRESENTATION
   },
   {
     id: 'v1-zone-a',
@@ -143,7 +147,8 @@ export const MOCK_VISUALS: VisualNode[] = [
     depth: 1100,
     color: 'rgba(56, 189, 248, 0.05)',
     viewMode: ViewMode.TOP_DOWN,
-    parentId: 'v1-floor'
+    parentId: 'v1-floor',
+    nodeRole: VisualNodeRole.LOCATION_REPRESENTATION
   },
   {
     id: 'v1-rack-1',
@@ -162,7 +167,8 @@ export const MOCK_VISUALS: VisualNode[] = [
     viewMode: ViewMode.TOP_DOWN,
     parentId: 'v1-zone-a',
     supportsFrontView: true,
-    supportsInteriorView: true
+    supportsInteriorView: true,
+    nodeRole: VisualNodeRole.LOCATION_REPRESENTATION
   },
   {
     id: 'v1-rack-2',
@@ -181,7 +187,8 @@ export const MOCK_VISUALS: VisualNode[] = [
     viewMode: ViewMode.TOP_DOWN,
     parentId: 'v1-zone-a',
     supportsFrontView: true,
-    supportsInteriorView: true
+    supportsInteriorView: true,
+    nodeRole: VisualNodeRole.UNASSIGNED_STORAGE
   },
   {
     id: 'v1-rack-3',
@@ -200,7 +207,8 @@ export const MOCK_VISUALS: VisualNode[] = [
     viewMode: ViewMode.TOP_DOWN,
     parentId: 'v1-zone-a',
     supportsFrontView: true,
-    supportsInteriorView: true
+    supportsInteriorView: true,
+    nodeRole: VisualNodeRole.UNASSIGNED_STORAGE
   },
 
   // LAYOUT 2: Precision Workshop (8m x 6m)
@@ -219,7 +227,8 @@ export const MOCK_VISUALS: VisualNode[] = [
     depth: 600,
     color: '#111827',
     viewMode: ViewMode.TOP_DOWN,
-    parentId: null
+    parentId: null,
+    nodeRole: VisualNodeRole.LOCATION_REPRESENTATION
   },
   {
     id: 'v2-bench-1',
@@ -236,7 +245,8 @@ export const MOCK_VISUALS: VisualNode[] = [
     depth: 80,
     color: '#475569',
     viewMode: ViewMode.TOP_DOWN,
-    parentId: 'v2-floor'
+    parentId: 'v2-floor',
+    nodeRole: VisualNodeRole.UNASSIGNED_STORAGE
   },
   {
     id: 'v2-cabinet-1',
@@ -255,6 +265,7 @@ export const MOCK_VISUALS: VisualNode[] = [
     viewMode: ViewMode.TOP_DOWN,
     parentId: 'v2-floor',
     supportsFrontView: true,
-    supportsInteriorView: true
+    supportsInteriorView: true,
+    nodeRole: VisualNodeRole.LOCATION_REPRESENTATION
   }
 ];

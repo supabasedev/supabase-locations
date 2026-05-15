@@ -19,15 +19,17 @@ import {
   Wind,
   Lock,
   Unlock,
-  Link as LinkIcon
+  Link as LinkIcon,
+  Home
 } from 'lucide-react';
-import React, { useState } from 'react';
-import { LogicalLocation, VisualNode, ViewMode } from '../../types';
+import React, { useState, useMemo } from 'react';
+import { LogicalLocation, VisualNode, ViewMode, Layout } from '../../types';
 import { motion, AnimatePresence } from 'motion/react';
 import { findNodeById, replaceNodeById } from '../../lib/structureUtils';
 import { PRESET_CATEGORIES } from '../../constants/presets';
 
 interface SidebarLeftProps {
+  layout: Layout;
   locations: LogicalLocation[];
   visuals: VisualNode[];
   selectedId: string | null;
@@ -41,11 +43,13 @@ interface SidebarLeftProps {
   selectedFrontCellIds: string[];
   onSelectFrontCell: (ids: string[] | ((prev: string[]) => string[])) => void;
   onUpdateNode?: (id: string, updates: Partial<VisualNode>) => void;
+  onVisualizeLocation?: (locId: string) => void;
 }
 
 type Tab = 'visuals' | 'presets' | 'locations' | 'layers' | 'structure';
 
 export default function EditorSidebarLeft({ 
+  layout,
   locations, 
   visuals, 
   selectedId, 
@@ -58,10 +62,13 @@ export default function EditorSidebarLeft({
   setViewMode,
   selectedFrontCellIds,
   onSelectFrontCell,
-  onUpdateNode
+  onUpdateNode,
+  onVisualizeLocation
 }: SidebarLeftProps) {
   const [activeTab, setActiveTab] = useState<Tab>(viewMode === ViewMode.FRONT ? 'structure' : 'visuals');
-  const [expandedIds, setExpandedIds] = useState<string[]>(['l1']);
+  
+  const rootLocationId = layout.rootLocationId;
+  const [expandedIds, setExpandedIds] = useState<string[]>(rootLocationId ? [rootLocationId] : ['l1']);
   const [expandedStructureIds, setExpandedStructureIds] = useState<string[]>([]);
 
   const isFrontMode = viewMode === ViewMode.FRONT;
@@ -269,8 +276,15 @@ export default function EditorSidebarLeft({
 
         {activeTab === 'locations' && (
           <div className="space-y-1">
-             <p className="text-[9px] font-black text-slate-600 uppercase tracking-widest px-2 mb-2 italic">Hierarchy</p>
-             {locations.filter(l => l.parentId === null).map(loc => (
+             <div className="px-2 mb-2 flex items-center justify-between">
+                <p className="text-[9px] font-black text-slate-600 uppercase tracking-widest italic">Hierarchy</p>
+                {rootLocationId && (
+                  <div className="flex items-center gap-1 text-[8px] font-black text-sky-500 uppercase tracking-widest bg-sky-500/5 px-1.5 py-0.5 rounded border border-sky-500/10">
+                    <Home className="w-2.5 h-2.5" /> Scoped
+                  </div>
+                )}
+             </div>
+             {locations.filter(l => rootLocationId ? l.id === rootLocationId : l.parentId === null).map(loc => (
                <LocationTreeItem 
                  key={loc.id} 
                  location={loc} 
@@ -279,8 +293,10 @@ export default function EditorSidebarLeft({
                  expandedIds={expandedIds}
                  setExpandedIds={setExpandedIds}
                  selectedId={selectedId}
+                 selectedIds={selectedIds}
                  onSelect={onSelect}
                  toggleSelection={toggleSelection}
+                 onVisualizeLocation={onVisualizeLocation}
                  depth={0}
                />
              ))}
@@ -325,11 +341,35 @@ function TabBtn({ icon, active, onClick, badge, title }: { icon: React.ReactElem
   );
 }
 
-function LocationTreeItem({ location, allLocations, visuals, expandedIds, setExpandedIds, selectedId, selectedIds, onSelect, toggleSelection, depth }: any) {
+function LocationTreeItem({ 
+  location, 
+  allLocations, 
+  visuals, 
+  expandedIds, 
+  setExpandedIds, 
+  selectedId, 
+  selectedIds, 
+  onSelect, 
+  toggleSelection, 
+  onVisualizeLocation,
+  depth 
+}: any) {
   const children = allLocations.filter((l: any) => l.parentId === location.id);
   const isExpanded = expandedIds.includes(location.id);
   const isSelected = selectedIds.includes(location.id) || selectedId === location.id;
-  const isMapped = visuals.some((v: any) => v.locationId === location.id);
+  
+  const isMappedTopDown = visuals.some((v: any) => v.locationId === location.id);
+  const isMappedFrontCell = visuals.some((v: any) => {
+    if (!v.structure) return false;
+    const findInStructure = (node: any): boolean => {
+       if (node.locationId === location.id) return true;
+       if (node.children) return node.children.some(findInStructure);
+       return false;
+    };
+    return findInStructure(v.structure);
+  });
+
+  const isMapped = isMappedTopDown || isMappedFrontCell;
   const hasChildren = children.length > 0;
 
   const toggle = (e: any) => {
@@ -354,7 +394,23 @@ function LocationTreeItem({ location, allLocations, visuals, expandedIds, setExp
         </div>
         <Box className={`w-3.5 h-3.5 ${isMapped ? 'text-sky-500/40' : isSelected ? 'text-sky-400' : 'text-slate-700'}`} />
         <span className="text-[10px] font-bold flex-1 truncate uppercase tracking-tight">{location.code}</span>
-        {isMapped && <div className="w-1 h-1 rounded-full bg-emerald-500 shadow-[0_0_4px_#10b981]"></div>}
+        
+        {!isMapped && (
+          <button 
+            onClick={(e) => { e.stopPropagation(); onVisualizeLocation?.(location.id); }}
+            className="opacity-0 group-hover:opacity-100 p-0.5 bg-sky-500 text-slate-950 rounded hover:bg-sky-400 transition-all shadow-[0_0_8px_rgba(56,189,248,0.3)]"
+            title="Visualize on map"
+          >
+            <Plus className="w-3 h-3" />
+          </button>
+        )}
+        
+        {isMappedTopDown && (
+          <div className="w-1.5 h-1.5 rounded-full bg-sky-500 shadow-[0_0_8px_rgba(14,165,233,0.5)]" title="Mapped Top-Down"></div>
+        )}
+        {isMappedFrontCell && (
+          <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)] ml-1" title="Mapped in Front-View"></div>
+        )}
       </div>
 
       <AnimatePresence initial={false}>
@@ -376,6 +432,7 @@ function LocationTreeItem({ location, allLocations, visuals, expandedIds, setExp
                  selectedId={selectedId}
                  onSelect={onSelect}
                  toggleSelection={toggleSelection}
+                 onVisualizeLocation={onVisualizeLocation}
                  depth={depth + 1}
                />
             ))}

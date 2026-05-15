@@ -1,0 +1,76 @@
+{
+  "layout": {
+    "id": "lay-diag",
+    "name": "Diagnostics Test Case",
+    "rootLocationId": "wh-01",
+    "status": "draft",
+    "lastEdited": "2026-05-14T15:00:00Z"
+  },
+  "visuals": [
+    {
+      "id": "v-valid",
+      "layoutId": "lay-diag",
+      "locationId": "wh-01-z1-r01",
+      "type": "industrial",
+      "label": "Valid Mapping",
+      "x": 10, "y": 0, "z": 0,
+      "width": 100, "height": 100, "depth": 100,
+      "color": "#10b981",
+      "viewMode": "top-down",
+      "parentId": null,
+      "nodeRole": "location_representation"
+    },
+    {
+      "id": "v-duplicate-1",
+      "layoutId": "lay-diag",
+      "locationId": "wh-01-z1-r01-s1-b01",
+      "type": "rectangle",
+      "label": "Duplicate 1",
+      "x": 200, "y": 0, "z": 0,
+      "width": 50, "height": 50, "depth": 50,
+      "color": "#f59e0b",
+      "viewMode": "top-down",
+      "parentId": null,
+      "nodeRole": "location_representation"
+    },
+    {
+      "id": "v-duplicate-2",
+      "layoutId": "lay-diag",
+      "locationId": "wh-01-z1-r01-s1-b01",
+      "type": "rectangle",
+      "label": "Duplicate 2",
+      "x": 300, "y": 0, "z": 0,
+      "width": 50, "height": 50, "depth": 50,
+      "color": "#f59e0b",
+      "viewMode": "top-down",
+      "parentId": null,
+      "nodeRole": "location_representation"
+    },
+    {
+      "id": "v-broken",
+      "layoutId": "lay-diag",
+      "locationId": "NON-EXISTENT-ID",
+      "type": "rectangle",
+      "label": "Broken Link",
+      "x": 400, "y": 0, "z": 0,
+      "width": 50, "height": 50, "depth": 50,
+      "color": "#ef4444",
+      "viewMode": "top-down",
+      "parentId": null,
+      "nodeRole": "location_representation"
+    },
+    {
+      "id": "v-out-of-scope",
+      "layoutId": "lay-diag",
+      "locationId": "wh-02",
+      "type": "rectangle",
+      "label": "Paris Object in Berlin Layout",
+      "x": 500, "y": 0, "z": 0,
+      "width": 50, "height": 50, "depth": 50,
+      "color": "#8b5cf6",
+      "viewMode": "top-down",
+      "parentId": null,
+      "nodeRole": "location_representation"
+    }
+  ]
+}

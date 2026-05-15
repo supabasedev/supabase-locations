@@ -2,7 +2,8 @@ import {
   VisualNode, 
   LogicalLocation, 
   Layout,
-  ViewMode
+  ViewMode,
+  VisualNodeRole
 } from '../../types';
 import { 
   Info, 
@@ -1080,6 +1081,30 @@ export default function EditorSidebarRight({
                    <Palette className="w-4 h-4 text-slate-700" />
                 </div>
              </div>
+
+             {/* Visual Role Section */}
+             <section className="space-y-4 pt-4 border-t border-slate-800 px-1">
+               <SectionHeader icon={<Settings2 />} label="Mapping Strategy" />
+               <div className="p-4 rounded-2xl bg-slate-800/40 border border-slate-750 space-y-4">
+                 <div className="space-y-1.5">
+                   <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block px-1">Node Role</label>
+                   <select 
+                     value={selectedNode.nodeRole || VisualNodeRole.LOCATION_REPRESENTATION}
+                     onChange={(e) => onUpdateNode(selectedNode.id, { nodeRole: e.target.value as VisualNodeRole })}
+                     className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2 text-white font-black text-xs outline-none focus:ring-1 focus:ring-sky-500 transition-all appearance-none cursor-pointer"
+                   >
+                     <option value={VisualNodeRole.LOCATION_REPRESENTATION}>Location Carrier</option>
+                     <option value={VisualNodeRole.UNASSIGNED_STORAGE}>Unassigned Storage</option>
+                     <option value={VisualNodeRole.INFRASTRUCTURE}>Infrastructure / Decor</option>
+                   </select>
+                   <p className="text-[8px] text-slate-600 px-1 italic">
+                     {selectedNode.nodeRole === VisualNodeRole.INFRASTRUCTURE 
+                       ? "Infrastructure is excluded from mapping health reports." 
+                       : "Mapped or unmapped storage objects are monitored."}
+                   </p>
+                 </div>
+               </div>
+             </section>
              {/* Zone Specific Settings */}
              {selectedNode.type === 'zone' && (
                <section className="space-y-4 pt-4 border-t border-slate-800">
@@ -1374,12 +1399,30 @@ export default function EditorSidebarRight({
              )}
              <div className="grid grid-cols-1 gap-2">
                 {selectedNode.supportsFrontView && (
-                   <PrimaryBtn 
-                     icon={selectedNode.frontSetupDone ? <Maximize2 className="w-4 h-4" /> : <Plus className="w-4 h-4" />} 
-                     label={selectedNode.frontSetupDone ? "Edit Front View" : "Set up front view"} 
-                     onClick={() => onSetViewMode(ViewMode.FRONT)} 
-                     variant={selectedNode.frontSetupDone ? "outline" : "solid"}
-                   />
+                  <>
+                    {isLinked ? (
+                      <PrimaryBtn 
+                        icon={selectedNode.frontSetupDone ? <Maximize2 className="w-4 h-4" /> : <Plus className="w-4 h-4" />} 
+                        label={selectedNode.frontSetupDone ? "Edit Front View" : "Set up front view"} 
+                        onClick={() => onSetViewMode(ViewMode.FRONT)} 
+                        variant={selectedNode.frontSetupDone ? "outline" : "solid"}
+                      />
+                    ) : (
+                      <div className="space-y-3">
+                        <div className="p-4 rounded-xl bg-amber-500/5 border border-amber-500/20">
+                           <p className="text-[9px] font-black text-amber-500 uppercase tracking-widest mb-1 italic">Mapping Required</p>
+                           <p className="text-[10px] text-slate-500 font-medium leading-relaxed">
+                             Associate this object with a logical location before configuring its internal structure to prevent data orphans.
+                           </p>
+                        </div>
+                        <PrimaryBtn 
+                          icon={<LinkIcon className="w-4 h-4" />} 
+                          label="Associate location" 
+                          onClick={() => setIsLinking(true)} 
+                        />
+                      </div>
+                    )}
+                  </>
                 )}
              </div>
           </section>

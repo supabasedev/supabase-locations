@@ -15,7 +15,8 @@ import {
   Layout, 
   VisualNode, 
   Branch, 
-  ViewMode 
+  ViewMode,
+  VisualNodeRole 
 } from './types';
 import Navigation from './components/layout/Navigation';
 import LocationsPage from './components/locations/LocationsPage';
@@ -53,6 +54,7 @@ export default function App() {
     const newLayout: Layout = {
       id: layoutId,
       branchId: activeBranch.id,
+      rootLocationId: data.locationId || null,
       name: data.name || `Workspace ${layouts.length + 1}`,
       status: 'draft',
       lastEdited: 'Just now'
@@ -74,7 +76,8 @@ export default function App() {
       depth: Math.round(data.depth * 100), 
       color: 'rgba(14, 165, 233, 0.05)', // Sky 500 at low opacity
       viewMode: ViewMode.TOP_DOWN,
-      parentId: null
+      parentId: null,
+      nodeRole: VisualNodeRole.LOCATION_REPRESENTATION
     };
 
     setLayouts([...layouts, newLayout]);

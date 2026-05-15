@@ -933,25 +933,6 @@ export default function FrontViewEditor({
   };
 
   const handleBatchMap = () => {
-    // 1. Get all globally unlinked locations
-    const allAssignedLocationIds = new Set<string>();
-    
-    // Check all visuals (top-level mapping)
-    // Note: visuals are not directly available here, but node.locations actually passed in as prop are ALL locations.
-    // We need to know which ones are already taken by OTHER visuals.
-    // Since we don't have all visuals here, we'll assume 'locations' prop has mappedVisualizationCount or similar, 
-    // but the most reliable way is if they were filtered before.
-    // However, I can't see all visuals here. 
-    
-    // Let's assume for now that if a location is already in any part of THIS node's structure, it's used.
-    // To do better, we'd need the global visuals list.
-    
-    const unlinkedLocations = locations.filter(l => 
-      l.locationType !== 'warehouse' && 
-      l.locationType !== 'zone' &&
-      (l.mappedVisualizationCount || 0) === 0
-    );
-    
     const usedInThisStructure = new Set<string>();
     const collectUsed = (s: StructureNode) => {
       if (s.locationId) usedInThisStructure.add(s.locationId);
@@ -959,7 +940,22 @@ export default function FrontViewEditor({
     };
     collectUsed(structure);
 
-    const available = unlinkedLocations.filter(l => !usedInThisStructure.has(l.id));
+    const unlinkedLocations = locations.filter(l => 
+      l.locationType !== 'warehouse' && 
+      l.locationType !== 'zone' &&
+      (l.mappedVisualizationCount || 0) === 0 &&
+      !usedInThisStructure.has(l.id)
+    );
+
+    // Filter available locations by priority:
+    // 1. Children of this node's linked location
+    // 2. Others
+    const parentLocChildren = node.locationId 
+      ? unlinkedLocations.filter(l => l.parentId === node.locationId)
+      : [];
+    
+    const otherAvailable = unlinkedLocations.filter(l => !parentLocChildren.some(pl => pl.id === l.id));
+    const available = [...parentLocChildren, ...otherAvailable];
 
     let locIdx = 0;
     const processBatch = (sNode: StructureNode): StructureNode => {
@@ -970,7 +966,7 @@ export default function FrontViewEditor({
             ...sNode, 
             locationId: loc.id, 
             label: loc.code,
-            displayLabel: loc.code.split('-').pop() || loc.code // Use short tail as display label
+            displayLabel: loc.code.split('-').pop() || loc.code
           };
         }
         return sNode;

@@ -8,7 +8,8 @@ import {
   VisualNode, 
   LogicalLocation, 
   ViewMode, 
-  LocationType 
+  LocationType,
+  VisualNodeRole
 } from '../../types';
 import { getAllDividers } from '../../lib/structureUtils';
 import EditorToolbar from './EditorToolbar';
@@ -57,6 +58,7 @@ export default function EditorPage({
   const [frontSplitDirection, setFrontSplitDirection] = useState<'horizontal' | 'vertical' | null>(null);
   const [batchMapTrigger, setBatchMapTrigger] = useState(false);
   const [isLinking, setIsLinking] = useState(false);
+  const [visualizeLocId, setVisualizeLocId] = useState<string | null>(null);
 
   // Derived state
   const layoutVisuals = useMemo(() => 
@@ -118,25 +120,33 @@ export default function EditorPage({
     setSelectedNodeIds(prev => prev.filter(id => id !== nodeId));
   };
 
+  const handleVisualizeLocation = (locId: string) => {
+    setVisualizeLocId(locId);
+    setIsAddModalOpen(true);
+  };
+
   const handleAddObject = (data: any) => {
     // Logic for adding visual, location, or both
     const newId = `new-${Date.now()}`;
     const rootVisual = layoutVisuals.find(v => v.parentId === null);
     
-    if (data.type === 'visual' || data.type === 'both') {
+    if (data.type === 'visual' || data.type === 'both' || data.type === 'existing') {
         const newVisual: VisualNode = {
             id: `v-${newId}`,
             layoutId: layout.id,
-            locationId: data.type === 'both' ? `l-${newId}` : null,
+            locationId: data.type === 'both' ? `l-${newId}` : (data.type === 'existing' ? data.locationId : null),
             type: 'rectangle',
             label: data.label || 'New Object',
+            nodeRole: (data.type === 'both' || data.type === 'existing') 
+                ? VisualNodeRole.LOCATION_REPRESENTATION 
+                : VisualNodeRole.UNASSIGNED_STORAGE,
             x: rootVisual ? rootVisual.width / 10 : 50,
             y: rootVisual ? rootVisual.depth / 10 : 30,
             z: 0,
             rotation: 0,
-            width: 100,
-            height: 200,
-            depth: 100,
+            width: data.dimensions?.width || 1000,
+            height: data.dimensions?.height || 2000,
+            depth: data.dimensions?.depth || 600,
             color: '#cbd5e1',
             viewMode: viewMode,
             parentId: rootVisual?.id || null
@@ -261,6 +271,7 @@ export default function EditorPage({
       <div className="flex-1 flex overflow-hidden">
         <div onClick={(e) => e.stopPropagation()} className="h-full flex">
             <EditorSidebarLeft 
+              layout={layout}
               locations={locations}
               visuals={layoutVisuals}
               selectedId={selectedNodeId}
@@ -274,6 +285,7 @@ export default function EditorPage({
               selectedFrontCellIds={selectedFrontCellIds}
               onSelectFrontCell={setSelectedFrontCellIds}
               onUpdateNode={handleUpdateNode}
+              onVisualizeLocation={handleVisualizeLocation}
             />
             <ToolRibbon 
               selectedTool={selectedTool}
@@ -381,6 +393,7 @@ export default function EditorPage({
               onUnlink={() => selectedNode && handleUnlink(selectedNode.id)}
               onFrontSplit={setFrontSplitDirection}
               onBatchMap={() => setBatchMapTrigger(true)}
+              onVisualizeLocation={handleVisualizeLocation}
               onCreateLocation={() => {
                 if (selectedNode) {
                     const newLocId = `l-gen-${Date.now()}`;
@@ -451,9 +464,13 @@ export default function EditorPage({
       <AnimatePresence>
         {isAddModalOpen && (
           <AddObjectModal 
-            onClose={() => setIsAddModalOpen(false)} 
+            onClose={() => {
+              setIsAddModalOpen(false);
+              setVisualizeLocId(null);
+            }} 
             onSubmit={handleAddObject}
             locations={locations}
+            initialLocationId={visualizeLocId || undefined}
           />
         )}
         {isDataDialogOpen && (

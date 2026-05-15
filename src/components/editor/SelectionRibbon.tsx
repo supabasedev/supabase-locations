@@ -9,7 +9,8 @@ import {
   Database,
   Minimize2,
   Split,
-  Copy
+  Copy,
+  LocateFixed
 } from 'lucide-react';
 import { ViewMode, VisualNode, LogicalLocation } from '../../types';
 import { cn } from "@/lib/utils";
@@ -30,6 +31,7 @@ interface SelectionRibbonProps {
   onFrontSplit?: (direction: 'horizontal' | 'vertical') => void;
   onBatchMap?: () => void;
   onCreateLocation?: () => void;
+  onVisualizeLocation?: (locId: string) => void;
 }
 
 export default function SelectionRibbon({
@@ -45,7 +47,8 @@ export default function SelectionRibbon({
   onUnlink,
   onFrontSplit,
   onBatchMap,
-  onCreateLocation
+  onCreateLocation,
+  onVisualizeLocation
 }: SelectionRibbonProps) {
   const [activeFlyout, setActiveFlyout] = useState<string | null>(null);
   const flyoutRef = useRef<HTMLDivElement>(null);
@@ -214,6 +217,19 @@ export default function SelectionRibbon({
                         color="emerald"
                     />
                   )}
+                  <div className="w-6 h-px bg-slate-800 mx-auto my-1" />
+                </>
+              )}
+
+              {/* Location-only actions */}
+              {selectedLocation && !selectedNode && (
+                <>
+                   <RibbonButton 
+                    icon={LocateFixed} 
+                    onClick={() => onVisualizeLocation?.(selectedLocation.id)} 
+                    label="Visualize on Map" 
+                    color="sky"
+                  />
                   <div className="w-6 h-px bg-slate-800 mx-auto my-1" />
                 </>
               )}

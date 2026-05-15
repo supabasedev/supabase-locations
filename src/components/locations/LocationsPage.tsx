@@ -413,7 +413,14 @@ export default function LocationsPage({
   };
 
   const findRelevantLayoutId = (locId: string): string | null => {
-    // Find layout where this location is mapped
+    const path = getLocationPath(locId);
+    const pathIds = new Set(path.map(l => l.id));
+
+    // 1. Check if any layout is explicitly scoped to this location or any of its ancestors
+    const scopedLayout = layouts.find(l => l.rootLocationId && pathIds.has(l.rootLocationId));
+    if (scopedLayout) return scopedLayout.id;
+
+    // 2. Find layout where this location is actually mapped
     const layoutWithMapping = layouts.find(layout => 
       visuals.some(v => v.layoutId === layout.id && (
         v.locationId === locId || 
@@ -423,8 +430,7 @@ export default function LocationsPage({
     
     if (layoutWithMapping) return layoutWithMapping.id;
 
-    // If no direct mapping, try to find mapping for any ancestor
-    const path = getLocationPath(locId);
+    // 3. Try to find mapping for any ancestor
     for (let i = path.length - 2; i >= 0; i--) {
        const ancestor = path[i];
        const ancestorLayout = layouts.find(layout => 
