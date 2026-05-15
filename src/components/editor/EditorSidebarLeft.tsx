@@ -73,7 +73,7 @@ export default function EditorSidebarLeft({
 }: SidebarLeftProps) {
   const rootLocationId = layout.rootLocationId;
   const [expandedIds, setExpandedIds] = useState<string[]>(rootLocationId ? [rootLocationId] : (locations[0] ? [locations[0].id] : []));
-  const [expandedStructureIds, setExpandedStructureIds] = useState<string[]>([]);
+  const [expandedWorkspaceIds, setExpandedWorkspaceIds] = useState<string[]>([]);
 
   const isFrontMode = viewMode === ViewMode.FRONT;
   const selectedNode = visuals.find(v => v.id === (selectedId || selectedIds[0]));
@@ -99,68 +99,19 @@ export default function EditorSidebarLeft({
     }
   };
 
-  // Group visuals for the visuals tab
-  const groupedVisuals = useMemo(() => {
-    const infrastructure = visuals.filter(v => v.nodeRole === 'infrastructure' || (!v.locationId && v.type !== 'rectangle' && v.type !== 'zone'));
-    const unassignedStorage = visuals.filter(v => !v.locationId && !infrastructure.includes(v) && v.parentId !== null);
-    const linkedVisuals = visuals.filter(v => !!v.locationId);
-    
-    return { linkedVisuals, unassignedStorage, infrastructure };
-  }, [visuals]);
+  // Search logic or other memoized state could go here if needed
 
-  // Recursively render location tree in visuals tab only for linked visuals
-  const renderVisualLinkTree = (parentId: string | null = null, depth = 0) => {
-    const currentLocations = locations.filter(l => (parentId ? l.parentId === parentId : l.parentId === null));
-    
-    return currentLocations.map(loc => {
-      const linkedVisuals = groupedVisuals.linkedVisuals.filter(v => v.locationId === loc.id);
-      const childElements = renderVisualLinkTree(loc.id, depth + 1);
-      
-      const hasContent = linkedVisuals.length > 0 || childElements.some(e => e !== null);
-      if (!hasContent) return null;
-
-      return (
-        <div key={loc.id} className="space-y-0.5">
-          <div 
-            style={{ paddingLeft: `${depth * 12 + 8}px` }}
-            className="flex items-center gap-2 py-1 px-2 text-[9px] font-black text-slate-600 uppercase tracking-widest border-l border-slate-800 ml-1"
-          >
-            {loc.code}
-          </div>
-          {linkedVisuals.map(v => (
-            <div key={v.id} style={{ paddingLeft: `${(depth + 1) * 12 + 8}px` }}>
-              <VisualListItem 
-                visual={v} 
-                selected={selectedIds?.includes(v.id)} 
-                onSelect={(shift: boolean) => toggleSelection(v.id, shift)} 
-                onClone={() => onCloneNode?.(v.id)}
-                onUpdate={(updates: Partial<VisualNode>) => onUpdateNode?.(v.id, updates)}
-                showGoToLocation
-                onGoToLocation={() => {
-                  onSelect(v.locationId);
-                  onTabChange('locations');
-                }}
-              />
-              {/* If visual has structure, we could potentially show front cells here, 
-                  but user says "Display under logical location tree structure", 
-                  which we are doing. Front cells nested here might be too much for high level list. */}
-            </div>
-          ))}
-          {childElements}
-        </div>
-      );
-    });
+  const toggleExpandWorkspace = (id: string) => {
+    setExpandedWorkspaceIds(prev => 
+      prev.includes(id) ? prev.filter(i => i !== id) : [...(prev || []), id]
+    );
   };
 
   return (
     <div className="w-64 bg-slate-900 border-r border-slate-800 flex flex-col z-30">
       <div className="flex bg-slate-950/50 border-b border-slate-800">
         <TabBtn icon={<Database />} active={activeTab === 'locations'} onClick={() => onTabChange('locations')} title="Connected Locations" />
-        {isFrontMode ? (
-          <TabBtn icon={<LayoutIcon />} active={activeTab === 'structure'} onClick={() => onTabChange('structure')} title="Object Structure" />
-        ) : (
-          <TabBtn icon={<Shapes />} active={activeTab === 'visuals'} onClick={() => onTabChange('visuals')} title="Visuals List" />
-        )}
+        <TabBtn icon={<Shapes />} active={activeTab === 'visuals' || activeTab === 'structure'} onClick={() => onTabChange('visuals')} title="Workspace Objects" />
         <TabBtn icon={<Package />} active={activeTab === 'presets'} onClick={() => onTabChange('presets')} title="Object Presets" />
         <TabBtn icon={<Layers />} active={activeTab === 'layers'} onClick={() => onTabChange('layers')} title="Layers" />
       </div>
@@ -177,87 +128,87 @@ export default function EditorSidebarLeft({
       </div>
 
       <div className="flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-slate-700 p-2">
-        {activeTab === 'structure' && isFrontMode && (
-          <div className="space-y-4">
-             {selectedNode?.structure ? (
-               <div>
-                  <div 
-                    onClick={() => setViewMode(ViewMode.TOP_DOWN)}
-                    className="flex items-center justify-between px-2 py-1.5 mb-2 rounded-lg cursor-pointer hover:bg-sky-500/5 transition-all text-sky-400 group border border-transparent hover:border-sky-500/20"
-                  >
-                    <p className="text-[10px] font-black uppercase tracking-widest italic">{selectedNode.label}</p>
-                    <ChevronRight className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity rotate-180" />
-                  </div>
-                  <StructureTreeItem 
-                    node={selectedNode.structure} 
-                    selectedCellIds={selectedFrontCellIds} 
-                    onSelectCell={(id: string, shift: boolean) => {
-                      if (shift) {
-                        onSelectFrontCell(prev => 
-                          prev?.includes(id) ? prev.filter(i => i !== id) : [...(prev || []), id]
-                        );
-                      } else {
-                        onSelectFrontCell([id]);
-                      }
-                    }}
-                    onSelectRecursive={(ids: string[]) => {
-                      onSelectFrontCell(prev => Array.from(new Set([...prev, ...ids])));
-                    }}
-                    depth={0} 
-                    expandedIds={expandedStructureIds}
-                    onToggleExpand={(id: string) => setExpandedStructureIds(prev => 
-                      prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
-                    )}
-                    onToggleLock={toggleLock}
-                  />
-               </div>
-             ) : (
-               <div className="p-8 text-center text-slate-700 text-[10px] uppercase font-bold italic tracking-widest opacity-40">
-                 Front view not initialized
-               </div>
-             )}
-          </div>
-        )}
-
-        {activeTab === 'visuals' && (
+        {(activeTab === 'visuals' || activeTab === 'structure') && (
           <div className="space-y-6">
              <div>
-                <p className="text-[9px] font-black text-slate-600 uppercase tracking-widest px-2 mb-2 italic">Location-Linked Visuals</p>
-                <div className="space-y-1">
-                  {renderVisualLinkTree()}
+                <p className="text-[9px] font-black text-slate-600 uppercase tracking-widest px-2 mb-3 italic">Workspace Objects</p>
+                <div className="space-y-0.5">
+                   {visuals.filter(v => !v.parentId && v.locationId).map(visual => (
+                     <UnifiedSidebarItem 
+                        key={visual.id}
+                        node={visual}
+                        type="visual"
+                        depth={0}
+                        locations={locations}
+                        visuals={visuals}
+                        selectedIds={selectedIds}
+                        selectedFrontCellIds={selectedFrontCellIds}
+                        expandedIds={expandedWorkspaceIds}
+                        onToggleExpand={toggleExpandWorkspace}
+                        onSelect={onSelect}
+                        onSelectFrontCell={onSelectFrontCell}
+                        setViewMode={setViewMode}
+                        onUpdateNode={onUpdateNode}
+                        onCloneNode={onCloneNode}
+                        onNavigateToMapping={onNavigateToMapping}
+                     />
+                   ))}
+                   {visuals.filter(v => !v.parentId && v.locationId).length === 0 && (
+                     <p className="text-[10px] text-slate-700 italic px-4 py-2">No linked objects</p>
+                   )}
                 </div>
              </div>
 
-             {groupedVisuals.unassignedStorage.length > 0 && (
+             {visuals.filter(v => !v.parentId && !v.locationId && v.nodeRole !== 'infrastructure').length > 0 && (
                <div>
-                  <p className="text-[9px] font-black text-slate-600 uppercase tracking-widest px-2 mb-2 italic">Unassigned Storage</p>
-                  <div className="px-1">
-                    {groupedVisuals.unassignedStorage.map(visual => (
-                      <VisualListItem 
-                        key={visual.id} 
-                        visual={visual} 
-                        selected={selectedIds?.includes(visual.id)} 
-                        onSelect={(shift: boolean) => toggleSelection(visual.id, shift)} 
-                        onClone={() => onCloneNode?.(visual.id)}
-                        onUpdate={(updates: Partial<VisualNode>) => onUpdateNode?.(visual.id, updates)}
+                  <p className="text-[9px] font-black text-slate-600 uppercase tracking-widest px-2 mb-3 italic">Unassigned Storage</p>
+                  <div className="space-y-0.5">
+                    {visuals.filter(v => !v.parentId && !v.locationId && v.nodeRole !== 'infrastructure').map(visual => (
+                      <UnifiedSidebarItem 
+                        key={visual.id}
+                        node={visual}
+                        type="visual"
+                        depth={0}
+                        locations={locations}
+                        visuals={visuals}
+                        selectedIds={selectedIds}
+                        selectedFrontCellIds={selectedFrontCellIds}
+                        expandedIds={expandedWorkspaceIds}
+                        onToggleExpand={toggleExpandWorkspace}
+                        onSelect={onSelect}
+                        onSelectFrontCell={onSelectFrontCell}
+                        setViewMode={setViewMode}
+                        onUpdateNode={onUpdateNode}
+                        onCloneNode={onCloneNode}
+                        onNavigateToMapping={onNavigateToMapping}
                       />
                     ))}
                   </div>
                </div>
              )}
 
-             {groupedVisuals.infrastructure.length > 0 && (
+             {visuals.filter(v => !v.parentId && v.nodeRole === 'infrastructure').length > 0 && (
                <div>
-                  <p className="text-[9px] font-black text-slate-600 uppercase tracking-widest px-2 mb-2 italic">Infrastructure / Context</p>
-                  <div className="px-1">
-                    {groupedVisuals.infrastructure.map(visual => (
-                      <VisualListItem 
-                        key={visual.id} 
-                        visual={visual} 
-                        selected={selectedIds?.includes(visual.id)} 
-                        onSelect={(shift: boolean) => toggleSelection(visual.id, shift)} 
-                        onClone={() => onCloneNode?.(visual.id)}
-                        onUpdate={(updates: Partial<VisualNode>) => onUpdateNode?.(visual.id, updates)}
+                  <p className="text-[9px] font-black text-slate-600 uppercase tracking-widest px-2 mb-3 italic">Infrastructure / Context</p>
+                  <div className="space-y-0.5">
+                    {visuals.filter(v => !v.parentId && v.nodeRole === 'infrastructure').map(visual => (
+                      <UnifiedSidebarItem 
+                        key={visual.id}
+                        node={visual}
+                        type="visual"
+                        depth={0}
+                        locations={locations}
+                        visuals={visuals}
+                        selectedIds={selectedIds}
+                        selectedFrontCellIds={selectedFrontCellIds}
+                        expandedIds={expandedWorkspaceIds}
+                        onToggleExpand={toggleExpandWorkspace}
+                        onSelect={onSelect}
+                        onSelectFrontCell={onSelectFrontCell}
+                        setViewMode={setViewMode}
+                        onUpdateNode={onUpdateNode}
+                        onCloneNode={onCloneNode}
+                        onNavigateToMapping={onNavigateToMapping}
                       />
                     ))}
                   </div>
@@ -491,147 +442,146 @@ function LocationTreeItem({
   );
 }
 
-function VisualListItem({ visual, selected, onSelect, onClone, onUpdate, showGoToLocation, onGoToLocation }: any) {
-  return (
-    <div 
-      className={`
-        flex items-center justify-between p-2 rounded-lg cursor-pointer transition-all border mb-1 group
-        ${selected ? 'bg-sky-500/10 text-sky-400 border-sky-500/30 shadow-[0_0_15px_rgba(14,165,233,0.05)]' : 'hover:bg-slate-800 text-slate-500 border-transparent hover:text-slate-200'}
-        ${visual.locked ? 'opacity-75' : ''}
-      `}
-      onClick={(e) => onSelect(e.shiftKey)}
-    >
-      <div className="flex items-center gap-2 min-w-0">
-         <div className={`w-4 h-4 border rounded flex items-center justify-center p-0.5 shrink-0 ${selected ? (visual.locked ? 'border-amber-500' : 'border-sky-500') : 'border-slate-700'}`}>
-            <div className={`w-full h-full rounded-sm ${selected ? (visual.locked ? 'bg-amber-500' : 'bg-sky-500') : 'bg-slate-700'}`}></div>
-         </div>
-         <div className="flex flex-col min-w-0">
-            <div className="flex items-center gap-1.5">
-              <span className={`text-[10px] font-black uppercase tracking-tight truncate ${selected ? 'text-white' : ''}`}>{visual.label}</span>
-              {visual.locked && <Lock className="w-2.5 h-2.5 text-amber-500/70" />}
-            </div>
-            <span className="text-[8px] text-slate-600 font-mono italic">
-              {visual.locationId ? 'Linked' : visual.nodeRole === 'infrastructure' ? 'Infrastructure' : 'Unassigned'}
-            </span>
-         </div>
-      </div>
-      <div className="flex items-center gap-1">
-        {showGoToLocation && visual.locationId && (
-          <button 
-            onClick={(e) => { e.stopPropagation(); onGoToLocation?.(); }}
-            className="p-1 text-slate-600 hover:text-white opacity-0 group-hover:opacity-100 transition-all hover:bg-slate-700 rounded"
-            title="Select Logical Location"
-          >
-            <Database className="w-3 h-3" />
-          </button>
-        )}
-        <button 
-          onClick={(e) => { 
-            e.stopPropagation(); 
-            onUpdate?.({ locked: !visual.locked });
-          }}
-          className={`p-1 transition-colors ${visual.locked ? 'text-amber-500' : 'text-slate-600 hover:text-white opacity-0 group-hover:opacity-100'}`}
-          title={visual.locked ? "Unlock Object" : "Lock Object"}
-        >
-          {visual.locked ? <Lock className="w-3.5 h-3.5" /> : <Unlock className="w-3.5 h-3.5" />}
-        </button>
-        <button 
-          onClick={(e) => { e.stopPropagation(); onClone?.(); }}
-          className={`p-1 transition-colors ${selected ? 'text-sky-400' : 'hover:text-white opacity-0 group-hover:opacity-100'}`}
-          title="Clone Node"
-        >
-          <Copy className="w-3.5 h-3.5" />
-        </button>
-      </div>
-    </div>
-  );
-}
-
-function StructureTreeItem({ node, selectedCellIds, onSelectCell, onSelectRecursive, depth, expandedIds, onToggleExpand, onToggleLock }: any) {
-  const isSelected = selectedCellIds?.includes(node.id);
-  const hasChildren = node.children && node.children.length > 0;
+function UnifiedSidebarItem({ 
+  node, 
+  type, 
+  depth, 
+  locations, 
+  visuals, 
+  selectedIds, 
+  selectedFrontCellIds, 
+  expandedIds, 
+  onToggleExpand, 
+  onSelect, 
+  onSelectFrontCell, 
+  setViewMode, 
+  onUpdateNode, 
+  onCloneNode,
+  onNavigateToMapping,
+  parentVisualId
+}: any) {
+  const isVisual = type === 'visual';
+  const isSelected = isVisual ? selectedIds?.includes(node.id) : selectedFrontCellIds?.includes(node.id);
   const isExpanded = expandedIds?.includes(node.id);
-
-  const getAllChildrenIds = (n: any): string[] => {
-    let ids = n.type === 'cell' ? [n.id] : [];
-    if (n.children) {
-      n.children.forEach((c: any) => {
-        ids = [...ids, ...getAllChildrenIds(c)];
-      });
-    }
-    return ids;
-  };
   
+  const linkedLocation = locations.find((l: any) => l.id === node.locationId);
+  
+  // Resolve children
+  let children: any[] = [];
+  if (isVisual) {
+    // Top-view visual children
+    const visualChildren = visuals.filter((v: any) => v.parentId === node.id);
+    // Front-view structure children
+    let structureChildren: any[] = [];
+    if (node.structure) {
+      const root = node.structure;
+      const isTechnicalRoot = !root.displayLabel && (root.label === 'root' || root.id.includes('root'));
+      if (isTechnicalRoot) {
+        structureChildren = root.children || [];
+      } else {
+        structureChildren = [root];
+      }
+    }
+    children = [...visualChildren, ...structureChildren];
+  } else {
+    // recursive structure children
+    children = node.children || [];
+  }
+
+  const hasChildren = children.length > 0;
+
+  const handleSelect = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (isVisual) {
+      onSelect(node.id);
+      setViewMode(ViewMode.TOP_DOWN);
+    } else {
+      onSelect(parentVisualId);
+      onSelectFrontCell([node.id]);
+      setViewMode(ViewMode.FRONT);
+    }
+  };
+
+  const toggleExpand = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    onToggleExpand(node.id);
+  };
+
   return (
     <div className="select-none">
       <div 
-        onClick={(e) => onSelectCell(node.id, e.shiftKey)}
+        onClick={handleSelect}
         className={`
-          flex items-center gap-2 p-1 py-1.5 rounded-md cursor-pointer group transition-all mb-0.5
+          flex items-center gap-2 p-2 rounded-xl cursor-pointer group transition-all mb-0.5 border
           ${isSelected 
-              ? (node.locked ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20' : 'bg-sky-500/10 text-sky-400 border border-sky-500/20') 
-              : 'hover:bg-slate-800 text-slate-500 hover:text-slate-200'}
+            ? 'bg-sky-500/10 text-sky-400 border-sky-500/30 shadow-[0_0_15px_rgba(14,165,233,0.05)]' 
+            : 'hover:bg-slate-800 text-slate-500 border-transparent hover:text-slate-200'}
+          ${node.locked ? 'opacity-70' : ''}
         `}
-        style={{ paddingLeft: `${depth * 12 + 8}px` }}
+        style={{ marginLeft: `${depth * 16}px` }}
       >
         <div 
-          onClick={(e) => {
-            e.stopPropagation();
-            onToggleExpand(node.id);
-          }}
+          onClick={toggleExpand}
           className={`hover:text-white transition-colors p-0.5 rounded hover:bg-slate-700 ${!hasChildren && 'opacity-0 pointer-events-none'}`}
         >
            {isExpanded ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
         </div>
-        <div className={`flex items-center gap-2 flex-1 min-w-0 ${node.locked ? 'opacity-50' : ''}`}>
-           {node.type === 'container' ? <LayoutIcon className="w-3.5 h-3.5" /> : <Square className="w-3.5 h-3.5" />}
-           <span className="text-[10px] font-bold flex-1 truncate uppercase tracking-tight">{node.displayLabel || node.label || node.id}</span>
-        </div>
         
-        {node.locationId && (
-          <div title="Mapped to Location">
-            <LinkIcon className="w-3 h-3 text-emerald-500 shrink-0" />
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2">
+            {isVisual ? (
+              <div className={`w-3.5 h-3.5 border rounded flex items-center justify-center p-0.5 shrink-0 ${isSelected ? 'border-sky-500' : 'border-slate-700'}`}>
+                <div className={`w-full h-full rounded-sm ${isSelected ? 'bg-sky-500' : 'bg-slate-700'}`} />
+              </div>
+            ) : (
+              node.type === 'container' ? <LayoutIcon className="w-3.5 h-3.5 shrink-0" /> : <Square className="w-3.5 h-3.5 shrink-0" />
+            )}
+            <span className={`text-[10px] font-black uppercase tracking-tight truncate ${isSelected ? 'text-white' : ''}`}>
+              {isVisual ? node.label : (node.displayLabel || node.label)}
+            </span>
+            {node.locked && <Lock className="w-2.5 h-2.5 text-amber-500/70 shrink-0" />}
           </div>
-        )}
+          
+          {linkedLocation && (
+            <div className="flex items-center gap-1.5 mt-0.5 ml-5">
+              <span className="text-[8px] font-black text-slate-600 uppercase tracking-widest italic">Linked →</span>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onNavigateToMapping?.(linkedLocation);
+                }}
+                className="text-[8px] font-black text-sky-500 uppercase tracking-widest hover:text-sky-300 underline underline-offset-2 decoration-sky-500/30"
+              >
+                {linkedLocation.code}
+              </button>
+            </div>
+          )}
+        </div>
 
-        {node.locked && (
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              onToggleLock(node.id);
+        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+          {isVisual && (
+             <button 
+               onClick={(e) => { e.stopPropagation(); onCloneNode?.(node.id); }}
+               className="p-1 hover:bg-slate-700 rounded text-slate-600 hover:text-white"
+               title="Clone"
+             >
+               <Copy className="w-3 h-3" />
+             </button>
+          )}
+          <button 
+            onClick={(e) => { 
+              e.stopPropagation(); 
+              if (isVisual) {
+                onUpdateNode?.(node.id, { locked: !node.locked });
+              } else {
+                // handle structure lock if supported
+              }
             }}
-            className="p-1 hover:bg-slate-700/50 rounded transition-all shrink-0 ml-1 text-slate-500 hover:text-white"
-            title="Unlock section"
+            className={`p-1 rounded transition-colors ${node.locked ? 'text-amber-500' : 'text-slate-600 hover:text-white'}`}
           >
-            <Lock className="w-3 h-3" />
+            {node.locked ? <Lock className="w-3 h-3" /> : <Unlock className="w-3 h-3" />}
           </button>
-        )}
-        
-        {!node.locked && (
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              onToggleLock(node.id);
-            }}
-            className="opacity-0 group-hover:opacity-100 p-1 hover:bg-slate-700/50 text-slate-500 hover:text-white rounded transition-all shrink-0 ml-1"
-            title="Lock section"
-          >
-            <Unlock className="w-3 h-3" />
-          </button>
-        )}
-
-        {node.type === 'container' && !node.locked && (
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              onSelectRecursive(getAllChildrenIds(node));
-            }}
-            title="Select all children"
-            className="opacity-0 group-hover:opacity-100 p-1 hover:bg-sky-500/20 text-sky-500 rounded transition-all shrink-0"
-          >
-            <Plus className="w-3 h-3" />
-          </button>
-        )}
+        </div>
       </div>
 
       <AnimatePresence initial={false}>
@@ -642,17 +592,25 @@ function StructureTreeItem({ node, selectedCellIds, onSelectCell, onSelectRecurs
             exit={{ height: 0, opacity: 0 }}
             className="overflow-hidden"
           >
-            {node.children.map((child: any) => (
-              <StructureTreeItem 
-                key={child.id} 
-                node={child} 
-                selectedCellIds={selectedCellIds} 
-                onSelectCell={onSelectCell} 
-                onSelectRecursive={onSelectRecursive}
-                depth={depth + 1} 
+            {children.map((child: any) => (
+              <UnifiedSidebarItem 
+                key={child.id}
+                node={child}
+                type={child.nodeRole ? 'visual' : 'structure'}
+                depth={depth + 1}
+                locations={locations}
+                visuals={visuals}
+                selectedIds={selectedIds}
+                selectedFrontCellIds={selectedFrontCellIds}
                 expandedIds={expandedIds}
                 onToggleExpand={onToggleExpand}
-                onToggleLock={onToggleLock}
+                onSelect={onSelect}
+                onSelectFrontCell={onSelectFrontCell}
+                setViewMode={setViewMode}
+                onUpdateNode={onUpdateNode}
+                onCloneNode={onCloneNode}
+                onNavigateToMapping={onNavigateToMapping}
+                parentVisualId={isVisual ? node.id : parentVisualId}
               />
             ))}
           </motion.div>

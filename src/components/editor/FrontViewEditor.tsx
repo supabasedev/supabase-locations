@@ -1562,8 +1562,8 @@ export default function FrontViewEditor({
           isSelected ? "opacity-100" : "opacity-40 group-hover:opacity-100"
         )}>
           <span className={cn(
-            "text-[10px] font-black uppercase tracking-widest break-all text-center leading-tight",
-            isSelected ? "text-sky-400 group-hover:text-sky-300" : "text-slate-500 group-hover:text-slate-300"
+            "text-[10px] font-black uppercase tracking-widest break-all text-center leading-tight transition-colors",
+            isSelected ? "text-sky-400" : "text-slate-500 group-hover:text-sky-400"
           )}>
             {label}
           </span>
