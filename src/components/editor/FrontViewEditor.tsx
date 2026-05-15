@@ -926,6 +926,13 @@ export default function FrontViewEditor({
     return false;
   };
 
+  const isAncestorOfSelected = (n: StructureNode): boolean => {
+    if (n.children) {
+      return n.children.some(child => selectedCellIds?.includes(child.id) || isAncestorOfSelected(child));
+    }
+    return false;
+  };
+
   const updateCell = (id: string, updates: Partial<StructureNode>) => {
     const target = findNodeById(structure, id);
     if (!target) return;
@@ -1550,8 +1557,14 @@ export default function FrontViewEditor({
 
     return (
       <div className="absolute inset-0 flex items-center justify-center p-1">
-        <div className="flex flex-col items-center gap-1 opacity-40 group-hover:opacity-100 transition-opacity">
-          <span className="text-[10px] font-black text-slate-500 group-hover:text-slate-300 uppercase tracking-widest break-all text-center leading-tight">
+        <div className={cn(
+          "flex flex-col items-center gap-1 transition-opacity",
+          isSelected ? "opacity-100" : "opacity-40 group-hover:opacity-100"
+        )}>
+          <span className={cn(
+            "text-[10px] font-black uppercase tracking-widest break-all text-center leading-tight",
+            isSelected ? "text-sky-400 group-hover:text-sky-300" : "text-slate-500 group-hover:text-slate-300"
+          )}>
             {label}
           </span>
         </div>
@@ -1560,8 +1573,10 @@ export default function FrontViewEditor({
   };
 
   const renderRecursive = (sNode: StructureNode): React.ReactNode => {
+    const isSelected = selectedCellIds?.includes(sNode.id);
+    const isAncestor = isAncestorOfSelected(sNode);
+
     if (sNode.type === 'cell') {
-      const isSelected = selectedCellIds?.includes(sNode.id);
       const linkedLocation = sNode.locationId ? locations.find(l => l.id === sNode.locationId) : null;
       const skin = sNode.skin ? SECTION_SKINS.find(s => s.id === sNode.skin) : null;
 
@@ -1629,7 +1644,7 @@ export default function FrontViewEditor({
 
     const isHorizontal = sNode.split === 'horizontal';
 
-    const content = (
+    let content = (
       <ResizablePanelGroup 
         key={`${sNode.id}-${sNode.children?.length}`}
         orientation={isHorizontal ? 'vertical' : 'horizontal'}
@@ -1707,8 +1722,8 @@ export default function FrontViewEditor({
     // Apply frame if present for this container
     if (sNode.frame) {
       const { top, bottom, left, right } = sNode.frame;
-      return (
-        <div className="flex-1 h-full w-full flex flex-col bg-slate-900">
+      content = (
+        <div className="flex-1 h-full w-full flex flex-col bg-slate-900 border border-slate-800/30">
            {top && (
              <div 
                onClick={(e) => { e.stopPropagation(); onSelectDividers([top.id]); onSelectCells([]); }}
@@ -1747,7 +1762,27 @@ export default function FrontViewEditor({
       );
     }
 
-    return content;
+    return (
+      <div className="relative flex-1 h-full w-full flex flex-col group/container overflow-hidden">
+        {content}
+        {isSelected && (
+          <div className="absolute inset-0 z-[40] pointer-events-none border-2 border-sky-500 bg-sky-500/5 transition-all animate-in fade-in duration-300">
+            <div className="absolute top-2 left-2 px-2 py-1 bg-sky-500 text-slate-950 text-[9px] font-black uppercase tracking-widest rounded shadow-xl flex items-center gap-1.5 pointer-events-auto">
+              <span className="drop-shadow-sm">{sNode.displayLabel || sNode.label}</span>
+            </div>
+            
+            {/* Corner Indicators for visual polish */}
+            <div className="absolute top-0 left-0 w-3 h-3 border-t-2 border-l-2 border-sky-400" />
+            <div className="absolute top-0 right-0 w-3 h-3 border-t-2 border-r-2 border-sky-400" />
+            <div className="absolute bottom-0 left-0 w-3 h-3 border-b-2 border-l-2 border-sky-400" />
+            <div className="absolute bottom-0 right-0 w-3 h-3 border-b-2 border-r-2 border-sky-400" />
+          </div>
+        )}
+        {!isSelected && isAncestor && (
+          <div className="absolute inset-0 z-[35] pointer-events-none border border-sky-500/30 bg-sky-500/[0.03] transition-all" />
+        )}
+      </div>
+    );
   };
 
   const Ruler = ({ orientation }: { orientation: 'horizontal' | 'horizontal-bottom' | 'vertical' | 'vertical-right' }) => {

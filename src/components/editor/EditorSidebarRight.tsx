@@ -622,6 +622,136 @@ export default function EditorSidebarRight({
         {/* SINGLE SELECTION / INDIVIDUAL OPTIONS (ONLY IF NOT IN MULTI-SELECT) */}
         {selectedNodes.length <= 1 && selectedFrontCellIds.length <= 1 && (
           <>
+            {/* 1. MAPPING INFORMATION SECTION (Logical <-> Visual bridge) */}
+            {(selectedLocation || isLinked) && (
+              <section className="space-y-4 animate-in fade-in slide-in-from-top-2 duration-300">
+                <SectionHeader icon={<LinkIcon />} label="Logical Mapping Bridge" />
+                <div className="p-4 rounded-2xl bg-slate-800/40 border border-slate-750 space-y-5 relative overflow-hidden group">
+                  <div className="absolute top-0 right-0 w-32 h-32 bg-sky-500/5 blur-3xl -mr-16 -mt-16 pointer-events-none" />
+                  
+                  {/* Logical Details */}
+                  {(() => {
+                    const loc = selectedLocation || locations.find(l => l.id === selectedNode?.locationId);
+                    if (!loc) return null;
+                    
+                    const parentNames: string[] = [];
+                    let curr: any = loc;
+                    while (curr?.parentId) {
+                      const p = locations.find(l => l.id === curr.parentId);
+                      if (p) {
+                        parentNames.unshift(p.code);
+                        curr = p;
+                      } else break;
+                    }
+                    const pathCode = [...parentNames, loc.code].join(' / ');
+
+                    return (
+                      <div className="space-y-4">
+                        <div className="flex items-start gap-3">
+                          <div className={`w-12 h-12 rounded-xl flex items-center justify-center border shadow-inner ${isLinked ? 'bg-sky-500/10 border-sky-500/30 text-sky-400' : 'bg-slate-700/30 border-slate-600 text-slate-500'}`}>
+                            <Database className="w-6 h-6" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-[11px] font-black text-white uppercase tracking-tight truncate leading-tight">{loc.name}</p>
+                            <p className="text-[9px] text-slate-500 font-mono font-bold mt-0.5 truncate uppercase">{pathCode}</p>
+                            <div className="flex gap-2 mt-2">
+                               <span className="text-[8px] px-1.5 py-0.5 rounded bg-slate-900 border border-slate-800 text-slate-500 font-black uppercase tracking-widest">{loc.role}</span>
+                               {loc.capabilities?.canStoreInventory && (
+                                 <span className="text-[8px] px-1.5 py-0.5 rounded bg-emerald-500/10 border border-emerald-500/30 text-emerald-500 font-black uppercase tracking-widest">Inventory</span>
+                               )}
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Mapping Details */}
+                        <div className="pt-4 border-t border-slate-750/50 space-y-3">
+                          <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest px-1">Visual Mapping</p>
+                          
+                          {(() => {
+                            // Find mappings
+                            const topDownNode = visuals.find(v => v.locationId === loc.id);
+                            
+                            const findsInStructure = (node: any, targetId: string): any => {
+                              if (node.locationId === targetId) return node;
+                              if (node.children) {
+                                for (const child of node.children) {
+                                  const result = findsInStructure(child, targetId);
+                                  if (result) return result;
+                                }
+                              }
+                              return null;
+                            };
+
+                            let frontParent: VisualNode | null = null;
+                            let frontCell: any = null;
+                            for (const v of visuals) {
+                              if (v.structure) {
+                                const found = findsInStructure(v.structure, loc.id);
+                                if (found) {
+                                  frontParent = v;
+                                  frontCell = found;
+                                  break;
+                                }
+                              }
+                            }
+
+                            if (topDownNode) {
+                              return (
+                                <div className="p-3 bg-sky-500/5 border border-sky-500/20 rounded-xl space-y-2">
+                                  <div className="flex items-center justify-between">
+                                    <span className="text-[8px] font-black text-sky-400 uppercase tracking-widest">Mapping Type</span>
+                                    <span className="text-[10px] font-bold text-white uppercase">Top-Down Link</span>
+                                  </div>
+                                  <div className="flex items-center justify-between">
+                                    <span className="text-[8px] font-black text-slate-600 uppercase tracking-widest">Visual Node</span>
+                                    <span className="text-[10px] font-mono text-slate-400">{topDownNode.label}</span>
+                                  </div>
+                                  <div className="flex items-center justify-between">
+                                    <span className="text-[8px] font-black text-slate-600 uppercase tracking-widest">Workspace Root</span>
+                                    <span className="text-[10px] font-bold text-slate-500 uppercase">{layout.name}</span>
+                                  </div>
+                                </div>
+                              );
+                            } else if (frontCell) {
+                              return (
+                                <div className="p-3 bg-emerald-500/5 border border-emerald-500/20 rounded-xl space-y-2">
+                                  <div className="flex items-center justify-between">
+                                    <span className="text-[8px] font-black text-emerald-400 uppercase tracking-widest">Mapping Type</span>
+                                    <span className="text-[10px] font-bold text-white uppercase">Front-View Cell</span>
+                                  </div>
+                                  <div className="flex items-center justify-between">
+                                    <span className="text-[8px] font-black text-slate-600 uppercase tracking-widest">Parent Node</span>
+                                    <span className="text-[10px] font-mono text-slate-400">{frontParent?.label}</span>
+                                  </div>
+                                  <div className="flex items-center justify-between">
+                                    <span className="text-[8px] font-black text-slate-600 uppercase tracking-widest">Cell ID</span>
+                                    <span className="text-[10px] font-mono text-slate-400 uppercase">{frontCell.displayLabel || frontCell.label || frontCell.id.slice(0,8)}</span>
+                                  </div>
+                                </div>
+                              );
+                            } else {
+                              return (
+                                <div className="p-3 bg-slate-900 border border-slate-800 rounded-xl flex items-center justify-center gap-2">
+                                  <AlertTriangle className="w-3.5 h-3.5 text-slate-700" />
+                                  <span className="text-[10px] font-black text-slate-600 uppercase tracking-widest italic font-mono">Unmapped Unit</span>
+                                </div>
+                              );
+                            }
+                          })()}
+                        </div>
+                        
+                        <div className="grid grid-cols-3 gap-2 pt-2">
+                           <ActionButton icon={<QrCode className="w-3.5 h-3.5" />} label="Identity" />
+                           <ActionButton icon={<History className="w-3.5 h-3.5" />} label="History" />
+                           <ActionButton icon={<Package className="w-3.5 h-3.5" />} label="SKUs" />
+                        </div>
+                      </div>
+                    );
+                  })()}
+                </div>
+              </section>
+            )}
+
             {/* Front View Selection Inspectors */}
             {viewMode === ViewMode.FRONT && (
               <>
@@ -960,19 +1090,46 @@ export default function EditorSidebarRight({
                 {selectedLocation?.status === 'archived' && <Badge color="red" label="Archived" icon={<Archive className="w-3 h-3" />} />}
             </div>
 
-            {/* Visual Properties Section */}
+            {/* 2. VISUAL ENTITY CONFIGURATION */}
             {selectedNode && (
-              <section className="space-y-4">
-                 <div className="flex items-center justify-between">
-                   <SectionHeader icon={<Maximize2 />} label="Geometry" />
-                   <button 
-                     onClick={() => onUpdateNode(selectedNode.id, { locked: !selectedNode.locked })}
-                     className={`p-1.5 rounded-lg transition-colors ${selectedNode.locked ? 'bg-amber-500/10 text-amber-400 hover:bg-amber-500/20' : 'hover:bg-slate-800 text-slate-400 hover:text-amber-500'}`}
-                     title={selectedNode.locked ? "Unlock Object" : "Lock Object"}
-                   >
-                     {selectedNode.locked ? <Lock className="w-3.5 h-3.5" /> : <Unlock className="w-3.5 h-3.5" />}
-                   </button>
-                 </div>
+              <section className="space-y-4 animate-in fade-in slide-in-from-top-2 duration-500 delay-100">
+                <SectionHeader icon={<Box />} label="Visual Entity" />
+                <div className="p-4 rounded-2xl bg-slate-800/40 border border-slate-750 space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div className="space-y-1">
+                      <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest italic">Identity</p>
+                      <h4 className="text-sm font-black text-white uppercase tracking-tight">{selectedNode.label}</h4>
+                    </div>
+                    <div className="flex flex-col items-end">
+                      <span className="text-[8px] font-black text-sky-400 bg-sky-500/10 px-2 py-0.5 rounded border border-sky-500/20 uppercase">{selectedNode.type}</span>
+                      <span className="text-[7px] text-slate-600 font-mono mt-1 uppercase">{selectedNode.id.slice(0,12)}</span>
+                    </div>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block px-1">Node Role</label>
+                    <select 
+                      value={selectedNode.nodeRole || VisualNodeRole.LOCATION_REPRESENTATION}
+                      onChange={(e) => onUpdateNode(selectedNode.id, { nodeRole: e.target.value as VisualNodeRole })}
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-white font-black text-xs outline-none focus:ring-1 focus:ring-sky-500 transition-all appearance-none cursor-pointer hover:bg-slate-900"
+                    >
+                      <option value={VisualNodeRole.LOCATION_REPRESENTATION}>Location Carrier</option>
+                      <option value={VisualNodeRole.UNASSIGNED_STORAGE}>Unassigned Storage</option>
+                      <option value={VisualNodeRole.INFRASTRUCTURE}>Infrastructure / Decor</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between px-1">
+                  <SectionHeader icon={<Maximize2 />} label="Geometry" />
+                  <button 
+                    onClick={() => onUpdateNode(selectedNode.id, { locked: !selectedNode.locked })}
+                    className={`p-1.5 rounded-lg transition-colors ${selectedNode.locked ? 'bg-amber-500/10 text-amber-400 hover:bg-amber-500/20' : 'hover:bg-slate-800 text-slate-400 hover:text-amber-500'}`}
+                    title={selectedNode.locked ? "Unlock Object" : "Lock Object"}
+                  >
+                    {selectedNode.locked ? <Lock className="w-3.5 h-3.5" /> : <Unlock className="w-3.5 h-3.5" />}
+                  </button>
+                </div>
              <div className="grid grid-cols-2 gap-3">
                 {viewMode === ViewMode.TOP_DOWN ? (
                   <>
@@ -1353,41 +1510,6 @@ export default function EditorSidebarRight({
           </section>
         )}
 
-        {/* Location Properties Section */}
-        {(selectedLocation || isLinked) && (
-          <section className="space-y-4">
-             <SectionHeader icon={<Info />} label="Logical mapping" />
-             <div className="p-4 rounded-xl bg-slate-800/40 border border-slate-750 space-y-4 relative group">
-                <div className="absolute top-4 right-4 text-emerald-500/30 group-hover:text-emerald-500 transition-colors">
-                   <LinkIcon className="w-4 h-4" />
-                </div>
-
-                <div className="flex items-center gap-3">
-                   <div className={`w-12 h-12 rounded-xl flex items-center justify-center border shadow-lg ${isLinked ? 'bg-sky-500/10 border-sky-500/20 text-sky-400' : 'bg-slate-700/50 border-slate-600 text-slate-500'}`}>
-                      <Box className="w-6 h-6" />
-                   </div>
-                   <div className="flex-1 overflow-hidden">
-                      <p className="text-xs font-black text-white uppercase tracking-tight truncate">{selectedLocation?.code || "NULL-POINTER"}</p>
-                      <p className="text-[9px] text-slate-600 font-mono uppercase tracking-widest italic">{selectedLocation?.role}</p>
-                   </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-x-4 gap-y-3 border-t border-slate-750 pt-4">
-                    <Detail label="Volumetric" value={selectedLocation?.capabilities?.canStoreInventory ? "Allowed" : "Restricted"} />
-                    <Detail label="SKU Density" value={selectedLocation?.skuCount?.toString() || "0"} />
-                    <Detail label="Stock Level" value={selectedLocation?.stockCount?.toString() || "0 UNIT"} />
-                    <Detail label="Parent Node" value={locations.find(l => l.id === selectedLocation?.parentId)?.code || "ROOT-SYS"} />
-                </div>
-
-                <div className="flex gap-2 pt-2">
-                   <ActionButton icon={<QrCode className="w-3.5 h-3.5" />} label="Identity" />
-                   <ActionButton icon={<History className="w-3.5 h-3.5" />} label="History" />
-                   <ActionButton icon={<Package className="w-3.5 h-3.5" />} label="SKUs" />
-                </div>
-             </div>
-          </section>
-        )}
-
         {/* Contextual Views Section */}
         {selectedNode && selectedNode.supportsFrontView && (
           <section className="space-y-3">
@@ -1431,7 +1553,7 @@ export default function EditorSidebarRight({
 
         {/* Action Logic Buttons */}
         <section className="pt-6 border-t border-slate-800 space-y-3">
-          {isLinked && (
+          {isLinked && (selectedNode && (
             <>
                <SecondaryBtn 
                  icon={<Link2Off className="w-4 h-4" />} 
@@ -1445,13 +1567,13 @@ export default function EditorSidebarRight({
                  onClick={() => onRemoveVisual(selectedNode.id)}
                />
             </>
-          )}
+          ))}
 
-          {isVisualOnly && (
+          {isVisualOnly && selectedNode && (
             <>
                <div className="p-4 rounded-xl bg-amber-500/5 border border-amber-500/20 mb-4">
                   <p className="text-[9px] font-black text-amber-500 uppercase tracking-widest mb-1 italic">Void state</p>
-                  <p className="text-[10px] text-slate-500 font-medium">This node has no logical anchor. It is a visual wrapper only.</p>
+                  <p className="text-[10px] text-slate-500 font-medium font-mono text-[9px] uppercase tracking-tighter">This node has no logical anchor. It is a visual wrapper only.</p>
                </div>
                <PrimaryBtn 
                  icon={<LinkIcon className="w-4 h-4" />} 
@@ -1474,9 +1596,16 @@ export default function EditorSidebarRight({
           )}
 
           {isLocationOnly && (
-             <div className="flex flex-col items-center justify-center p-6 text-center space-y-4 rounded-2xl border-2 border-dashed border-slate-800">
-               <Move className="w-8 h-8 text-slate-700" />
-               <p className="text-[10px] font-black text-slate-600 uppercase tracking-widest italic">Logical ref selected. Drop into plan to visualize.</p>
+             <div className="flex flex-col items-center justify-center p-8 text-center space-y-4 rounded-3xl border-2 border-dashed border-slate-800 bg-slate-900/50">
+               <div className="w-12 h-12 rounded-full bg-slate-800 flex items-center justify-center text-slate-600">
+                 <Move className="w-6 h-6" />
+               </div>
+               <div className="space-y-1">
+                 <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Logical Unit</p>
+                 <p className="text-[9px] text-slate-600 uppercase font-bold tracking-widest leading-relaxed px-4">
+                   Selected Ref is unmapped. Use "Visualize" or Drag onto plan.
+                 </p>
+               </div>
              </div>
           )}
         </section>

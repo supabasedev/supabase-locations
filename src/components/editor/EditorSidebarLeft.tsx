@@ -34,6 +34,8 @@ interface SidebarLeftProps {
   visuals: VisualNode[];
   selectedId: string | null;
   selectedIds: string[];
+  activeTab: Tab;
+  onTabChange: (tab: Tab) => void;
   onSelect: (id: string | null) => void;
   onSelectMultiple: (ids: string[]) => void;
   onCloneNode?: (id: string) => void;
@@ -44,9 +46,10 @@ interface SidebarLeftProps {
   onSelectFrontCell: (ids: string[] | ((prev: string[]) => string[])) => void;
   onUpdateNode?: (id: string, updates: Partial<VisualNode>) => void;
   onVisualizeLocation?: (locId: string) => void;
+  onNavigateToMapping?: (location: LogicalLocation) => void;
 }
 
-type Tab = 'visuals' | 'presets' | 'locations' | 'layers' | 'structure';
+export type Tab = 'visuals' | 'presets' | 'locations' | 'layers' | 'structure';
 
 export default function EditorSidebarLeft({ 
   layout,
@@ -54,6 +57,8 @@ export default function EditorSidebarLeft({
   visuals, 
   selectedId, 
   selectedIds,
+  activeTab,
+  onTabChange,
   onSelect, 
   onSelectMultiple,
   onCloneNode,
@@ -63,10 +68,9 @@ export default function EditorSidebarLeft({
   selectedFrontCellIds,
   onSelectFrontCell,
   onUpdateNode,
-  onVisualizeLocation
+  onVisualizeLocation,
+  onNavigateToMapping
 }: SidebarLeftProps) {
-  const [activeTab, setActiveTab] = useState<Tab>(viewMode === ViewMode.FRONT ? 'structure' : 'visuals');
-  
   const rootLocationId = layout.rootLocationId;
   const [expandedIds, setExpandedIds] = useState<string[]>(rootLocationId ? [rootLocationId] : (locations[0] ? [locations[0].id] : []));
   const [expandedStructureIds, setExpandedStructureIds] = useState<string[]>([]);
@@ -95,50 +99,70 @@ export default function EditorSidebarLeft({
     }
   };
 
-  // Auto-expand parents of selected cell
-  React.useEffect(() => {
-    if (selectedFrontCellIds.length > 0 && selectedNode?.structure) {
-      const lastId = selectedFrontCellIds[selectedFrontCellIds.length - 1];
-      const getPath = (root: any, id: string, path: string[] = []): string[] | null => {
-        if (root.id === id) return path;
-        if (root.children) {
-          for (const child of root.children) {
-            const result = getPath(child, id, [...path, root.id]);
-            if (result) return result;
-          }
-        }
-        return null;
-      };
-      const path = getPath(selectedNode.structure, lastId);
-      if (path) {
-        setExpandedStructureIds(prev => Array.from(new Set([...prev, ...path])));
-      }
-    }
-  }, [selectedFrontCellIds, selectedNode?.structure]);
+  // Group visuals for the visuals tab
+  const groupedVisuals = useMemo(() => {
+    const infrastructure = visuals.filter(v => v.nodeRole === 'infrastructure' || (!v.locationId && v.type !== 'rectangle' && v.type !== 'zone'));
+    const unassignedStorage = visuals.filter(v => !v.locationId && !infrastructure.includes(v) && v.parentId !== null);
+    const linkedVisuals = visuals.filter(v => !!v.locationId);
+    
+    return { linkedVisuals, unassignedStorage, infrastructure };
+  }, [visuals]);
 
-  // Sync tab when viewMode changes
-  React.useEffect(() => {
-    if (viewMode === ViewMode.FRONT) {
-      setActiveTab('structure');
-    } else {
-      setActiveTab('visuals');
-    }
-  }, [viewMode]);
+  // Recursively render location tree in visuals tab only for linked visuals
+  const renderVisualLinkTree = (parentId: string | null = null, depth = 0) => {
+    const currentLocations = locations.filter(l => (parentId ? l.parentId === parentId : l.parentId === null));
+    
+    return currentLocations.map(loc => {
+      const linkedVisuals = groupedVisuals.linkedVisuals.filter(v => v.locationId === loc.id);
+      const childElements = renderVisualLinkTree(loc.id, depth + 1);
+      
+      const hasContent = linkedVisuals.length > 0 || childElements.some(e => e !== null);
+      if (!hasContent) return null;
 
-  const rootVisual = visuals.find(v => v.parentId === null && v.type === 'zone');
-  const otherVisuals = visuals.filter(v => v !== rootVisual);
+      return (
+        <div key={loc.id} className="space-y-0.5">
+          <div 
+            style={{ paddingLeft: `${depth * 12 + 8}px` }}
+            className="flex items-center gap-2 py-1 px-2 text-[9px] font-black text-slate-600 uppercase tracking-widest border-l border-slate-800 ml-1"
+          >
+            {loc.code}
+          </div>
+          {linkedVisuals.map(v => (
+            <div key={v.id} style={{ paddingLeft: `${(depth + 1) * 12 + 8}px` }}>
+              <VisualListItem 
+                visual={v} 
+                selected={selectedIds?.includes(v.id)} 
+                onSelect={(shift: boolean) => toggleSelection(v.id, shift)} 
+                onClone={() => onCloneNode?.(v.id)}
+                onUpdate={(updates: Partial<VisualNode>) => onUpdateNode?.(v.id, updates)}
+                showGoToLocation
+                onGoToLocation={() => {
+                  onSelect(v.locationId);
+                  onTabChange('locations');
+                }}
+              />
+              {/* If visual has structure, we could potentially show front cells here, 
+                  but user says "Display under logical location tree structure", 
+                  which we are doing. Front cells nested here might be too much for high level list. */}
+            </div>
+          ))}
+          {childElements}
+        </div>
+      );
+    });
+  };
 
   return (
     <div className="w-64 bg-slate-900 border-r border-slate-800 flex flex-col z-30">
       <div className="flex bg-slate-950/50 border-b border-slate-800">
+        <TabBtn icon={<Database />} active={activeTab === 'locations'} onClick={() => onTabChange('locations')} title="Connected Locations" />
         {isFrontMode ? (
-          <TabBtn icon={<LayoutIcon />} active={activeTab === 'structure'} onClick={() => setActiveTab('structure')} title="Object Structure" />
+          <TabBtn icon={<LayoutIcon />} active={activeTab === 'structure'} onClick={() => onTabChange('structure')} title="Object Structure" />
         ) : (
-          <TabBtn icon={<Shapes />} active={activeTab === 'visuals'} onClick={() => setActiveTab('visuals')} title="Visuals List" />
+          <TabBtn icon={<Shapes />} active={activeTab === 'visuals'} onClick={() => onTabChange('visuals')} title="Visuals List" />
         )}
-        <TabBtn icon={<Package />} active={activeTab === 'presets'} onClick={() => setActiveTab('presets')} title="Object Presets" />
-        <TabBtn icon={<Database />} active={activeTab === 'locations'} onClick={() => setActiveTab('locations')} title="Connected Locations" />
-        <TabBtn icon={<Layers />} active={activeTab === 'layers'} onClick={() => setActiveTab('layers')} title="Layers" />
+        <TabBtn icon={<Package />} active={activeTab === 'presets'} onClick={() => onTabChange('presets')} title="Object Presets" />
+        <TabBtn icon={<Layers />} active={activeTab === 'layers'} onClick={() => onTabChange('layers')} title="Layers" />
       </div>
 
       <div className="p-3 border-b border-slate-800 bg-slate-900">
@@ -196,47 +220,49 @@ export default function EditorSidebarLeft({
         )}
 
         {activeTab === 'visuals' && (
-          <div className="space-y-4">
-             {rootVisual && (
+          <div className="space-y-6">
+             <div>
+                <p className="text-[9px] font-black text-slate-600 uppercase tracking-widest px-2 mb-2 italic">Location-Linked Visuals</p>
+                <div className="space-y-1">
+                  {renderVisualLinkTree()}
+                </div>
+             </div>
+
+             {groupedVisuals.unassignedStorage.length > 0 && (
                <div>
-                  <p className="text-[9px] font-black text-slate-600 uppercase tracking-widest px-2 mb-2 italic">Physical Footprint</p>
-                  <div 
-                    onClick={(e) => toggleSelection(rootVisual.id, e.shiftKey)}
-                    className={`flex items-center gap-3 p-3 rounded-xl border transition-all cursor-pointer ${
-                      selectedIds?.includes(rootVisual.id) ? 'bg-sky-500/10 border-sky-500/30 text-sky-400' : 'bg-slate-800/40 border-slate-700 hover:border-slate-600 text-slate-400'
-                    }`}
-                  >
-                     <div className="w-10 h-10 rounded-lg bg-slate-900 flex items-center justify-center border border-slate-700 shrink-0">
-                        <Warehouse className="w-5 h-5" />
-                     </div>
-                     <div>
-                        <p className="text-[10px] font-black uppercase tracking-tight text-white">{rootVisual.label}</p>
-                        <p className="text-[8px] font-mono text-slate-500 uppercase tracking-widest">
-                          {rootVisual.width/10}cm x {rootVisual.depth/10}cm Total
-                        </p>
-                     </div>
+                  <p className="text-[9px] font-black text-slate-600 uppercase tracking-widest px-2 mb-2 italic">Unassigned Storage</p>
+                  <div className="px-1">
+                    {groupedVisuals.unassignedStorage.map(visual => (
+                      <VisualListItem 
+                        key={visual.id} 
+                        visual={visual} 
+                        selected={selectedIds?.includes(visual.id)} 
+                        onSelect={(shift: boolean) => toggleSelection(visual.id, shift)} 
+                        onClone={() => onCloneNode?.(visual.id)}
+                        onUpdate={(updates: Partial<VisualNode>) => onUpdateNode?.(visual.id, updates)}
+                      />
+                    ))}
                   </div>
                </div>
              )}
 
-             <div>
-                <p className="text-[9px] font-black text-slate-600 uppercase tracking-widest px-2 mb-2 italic">Visual Nodes ({otherVisuals.length})</p>
-                {otherVisuals.map(visual => (
-                  <VisualListItem 
-                    key={visual.id} 
-                    visual={visual} 
-                    selected={selectedIds?.includes(visual.id)} 
-                    onSelect={(shift: boolean) => toggleSelection(visual.id, shift)} 
-                    onClone={() => onCloneNode?.(visual.id)}
-                    onUpdate={(updates: Partial<VisualNode>) => onUpdateNode?.(visual.id, updates)}
-                  />
-                ))}
-                {otherVisuals.length === 0 && (
-                  <div className="p-8 text-center text-slate-700 text-[10px] uppercase font-bold italic tracking-widest opacity-40">
-                    No child objects placed yet
+             {groupedVisuals.infrastructure.length > 0 && (
+               <div>
+                  <p className="text-[9px] font-black text-slate-600 uppercase tracking-widest px-2 mb-2 italic">Infrastructure / Context</p>
+                  <div className="px-1">
+                    {groupedVisuals.infrastructure.map(visual => (
+                      <VisualListItem 
+                        key={visual.id} 
+                        visual={visual} 
+                        selected={selectedIds?.includes(visual.id)} 
+                        onSelect={(shift: boolean) => toggleSelection(visual.id, shift)} 
+                        onClone={() => onCloneNode?.(visual.id)}
+                        onUpdate={(updates: Partial<VisualNode>) => onUpdateNode?.(visual.id, updates)}
+                      />
+                    ))}
                   </div>
-                )}
-             </div>
+               </div>
+             )}
           </div>
         )}
 
@@ -258,7 +284,7 @@ export default function EditorSidebarLeft({
                          <div className="flex-1">
                             <p className="text-[10px] font-black uppercase tracking-tight text-slate-200 group-hover:text-white">{item.label}</p>
                             <p className="text-[8px] font-mono text-slate-500 uppercase tracking-widest">
-                              {item.w/10}x{item.d/10}cm Surface
+                               {item.w/10}x{item.d/10}cm Surface
                             </p>
                          </div>
                          <div className="opacity-0 group-hover:opacity-100 transition-opacity">
@@ -277,7 +303,7 @@ export default function EditorSidebarLeft({
         {activeTab === 'locations' && (
           <div className="space-y-1">
              <div className="px-2 mb-2 flex items-center justify-between">
-                <p className="text-[9px] font-black text-slate-600 uppercase tracking-widest italic">Hierarchy</p>
+                <p className="text-[9px] font-black text-slate-600 uppercase tracking-widest italic">Logical Hierarchy</p>
                 {rootLocationId && (
                   <div className="flex items-center gap-1 text-[8px] font-black text-sky-500 uppercase tracking-widest bg-sky-500/5 px-1.5 py-0.5 rounded border border-sky-500/10">
                     <Home className="w-2.5 h-2.5" /> Scoped
@@ -297,6 +323,7 @@ export default function EditorSidebarLeft({
                  onSelect={onSelect}
                  toggleSelection={toggleSelection}
                  onVisualizeLocation={onVisualizeLocation}
+                 onNavigateToMapping={onNavigateToMapping}
                  depth={0}
                />
              ))}
@@ -352,22 +379,23 @@ function LocationTreeItem({
   onSelect, 
   toggleSelection, 
   onVisualizeLocation,
+  onNavigateToMapping,
   depth 
 }: any) {
   const children = allLocations.filter((l: any) => l.parentId === location.id);
   const isExpanded = expandedIds?.includes(location.id);
   const isSelected = selectedIds?.includes(location.id) || selectedId === location.id;
   
-  const isMappedTopDown = visuals.some((v: any) => v.locationId === location.id);
-  const isMappedFrontCell = visuals.some((v: any) => {
-    if (!v.structure) return false;
-    const findInStructure = (node: any): boolean => {
-       if (node.locationId === location.id) return true;
-       if (node.children) return node.children.some(findInStructure);
-       return false;
-    };
-    return findInStructure(v.structure);
-  });
+  const linkedVisual = visuals.find((v: any) => v.locationId === location.id);
+  const isMappedTopDown = !!linkedVisual;
+  
+  const findsInStructure = (node: any): boolean => {
+     if (node.locationId === location.id) return true;
+     if (node.children) return node.children.some(findsInStructure);
+     return false;
+  };
+  const parentNodeWithFrontMapping = visuals.find((v: any) => v.structure && findsInStructure(v.structure));
+  const isMappedFrontCell = !!parentNodeWithFrontMapping;
 
   const isMapped = isMappedTopDown || isMappedFrontCell;
   const hasChildren = children.length > 0;
@@ -384,15 +412,15 @@ function LocationTreeItem({
       <div 
         className={`
           flex items-center gap-2 p-1 py-1.5 rounded-md cursor-pointer group transition-all mb-0.5
-          ${isSelected ? 'bg-sky-500/10 text-sky-400 border border-sky-500/20' : 'hover:bg-slate-800 text-slate-500 hover:text-slate-200'}
+          ${isSelected ? 'bg-sky-500/10 text-sky-400 border border-sky-500/20 shadow-[inset_0_1px_0_0_rgba(56,189,248,0.05)]' : 'hover:bg-slate-800 text-slate-500 hover:text-slate-200'}
         `}
         style={{ paddingLeft: `${depth * 12 + 8}px` }}
         onClick={(e) => toggleSelection(location.id, e.shiftKey)}
       >
-        <div onClick={toggle} className={`hover:text-white transition-colors ${!hasChildren && 'opacity-0 pointer-events-none'}`}>
+        <div onClick={toggle} className={`hover:text-white transition-colors p-0.5 rounded ${!hasChildren && 'opacity-0 pointer-events-none'}`}>
            {isExpanded ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
         </div>
-        <Box className={`w-3.5 h-3.5 ${isMapped ? 'text-sky-500/40' : isSelected ? 'text-sky-400' : 'text-slate-700'}`} />
+        <Box className={`w-3.5 h-3.5 ${isMapped ? 'text-sky-500/60' : isSelected ? 'text-sky-400' : 'text-slate-700'}`} />
         <span className="text-[10px] font-bold flex-1 truncate uppercase tracking-tight">{location.code}</span>
         
         {!isMapped && (
@@ -406,10 +434,28 @@ function LocationTreeItem({
         )}
         
         {isMappedTopDown && (
-          <div className="w-1.5 h-1.5 rounded-full bg-sky-500 shadow-[0_0_8px_rgba(14,165,233,0.5)]" title="Mapped Top-Down"></div>
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onNavigateToMapping?.(location);
+            }}
+            className="p-1 rounded bg-sky-500/10 text-sky-400 hover:bg-sky-500 hover:text-slate-950 transition-all border border-sky-500/20 group-hover:shadow-[0_0_10px_rgba(14,165,233,0.3)]"
+            title="Go to Top-Down visual node"
+          >
+            <LinkIcon className="w-2.5 h-2.5" />
+          </button>
         )}
         {isMappedFrontCell && (
-          <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)] ml-1" title="Mapped in Front-View"></div>
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onNavigateToMapping?.(location);
+            }}
+            className="p-1 rounded bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500 hover:text-slate-950 transition-all border border-emerald-500/20 group-hover:shadow-[0_0_10px_rgba(16,185,129,0.3)]"
+            title="Go to Front-View cell"
+          >
+            <LayoutIcon className="w-2.5 h-2.5" />
+          </button>
         )}
       </div>
 
@@ -430,9 +476,11 @@ function LocationTreeItem({
                  expandedIds={expandedIds}
                  setExpandedIds={setExpandedIds}
                  selectedId={selectedId}
+                 selectedIds={selectedIds}
                  onSelect={onSelect}
                  toggleSelection={toggleSelection}
                  onVisualizeLocation={onVisualizeLocation}
+                 onNavigateToMapping={onNavigateToMapping}
                  depth={depth + 1}
                />
             ))}
@@ -443,7 +491,7 @@ function LocationTreeItem({
   );
 }
 
-function VisualListItem({ visual, selected, onSelect, onClone, onUpdate }: any) {
+function VisualListItem({ visual, selected, onSelect, onClone, onUpdate, showGoToLocation, onGoToLocation }: any) {
   return (
     <div 
       className={`
@@ -453,19 +501,30 @@ function VisualListItem({ visual, selected, onSelect, onClone, onUpdate }: any) 
       `}
       onClick={(e) => onSelect(e.shiftKey)}
     >
-      <div className="flex items-center gap-2">
-         <div className={`w-4 h-4 border rounded flex items-center justify-center p-0.5 ${selected ? (visual.locked ? 'border-amber-500' : 'border-sky-500') : 'border-slate-700'}`}>
+      <div className="flex items-center gap-2 min-w-0">
+         <div className={`w-4 h-4 border rounded flex items-center justify-center p-0.5 shrink-0 ${selected ? (visual.locked ? 'border-amber-500' : 'border-sky-500') : 'border-slate-700'}`}>
             <div className={`w-full h-full rounded-sm ${selected ? (visual.locked ? 'bg-amber-500' : 'bg-sky-500') : 'bg-slate-700'}`}></div>
          </div>
-         <div className="flex flex-col">
+         <div className="flex flex-col min-w-0">
             <div className="flex items-center gap-1.5">
-              <span className={`text-[10px] font-black uppercase tracking-tight ${selected ? 'text-white' : ''}`}>{visual.label}</span>
+              <span className={`text-[10px] font-black uppercase tracking-tight truncate ${selected ? 'text-white' : ''}`}>{visual.label}</span>
               {visual.locked && <Lock className="w-2.5 h-2.5 text-amber-500/70" />}
             </div>
-            <span className="text-[8px] text-slate-600 font-mono italic">{visual.locationId ? 'Mapped-ID' : 'Virtual'}</span>
+            <span className="text-[8px] text-slate-600 font-mono italic">
+              {visual.locationId ? 'Linked' : visual.nodeRole === 'infrastructure' ? 'Infrastructure' : 'Unassigned'}
+            </span>
          </div>
       </div>
       <div className="flex items-center gap-1">
+        {showGoToLocation && visual.locationId && (
+          <button 
+            onClick={(e) => { e.stopPropagation(); onGoToLocation?.(); }}
+            className="p-1 text-slate-600 hover:text-white opacity-0 group-hover:opacity-100 transition-all hover:bg-slate-700 rounded"
+            title="Select Logical Location"
+          >
+            <Database className="w-3 h-3" />
+          </button>
+        )}
         <button 
           onClick={(e) => { 
             e.stopPropagation(); 

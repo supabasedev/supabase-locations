@@ -13,7 +13,7 @@ import {
 } from '../../types';
 import { getAllDividers } from '../../lib/structureUtils';
 import EditorToolbar from './EditorToolbar';
-import EditorSidebarLeft from './EditorSidebarLeft';
+import EditorSidebarLeft, { Tab } from './EditorSidebarLeft';
 import EditorSidebarRight from './EditorSidebarRight';
 import SelectionRibbon from './SelectionRibbon';
 import ToolRibbon from './ToolRibbon';
@@ -43,10 +43,13 @@ export default function EditorPage({
   onBack 
 }: EditorPageProps) {
   const [viewMode, setViewMode] = useState<ViewMode>(ViewMode.TOP_DOWN);
+  const [activeTab, setActiveTab] = useState<Tab>(viewMode === ViewMode.FRONT ? 'structure' : 'locations');
   const [selectedTool, setSelectedTool] = useState<EditorTool>('select');
   const [selectedNodeIds, setSelectedNodeIds] = useState<string[]>([]);
   const [selectedFrontCellIds, setSelectedFrontCellIds] = useState<string[]>([]);
   const [selectedFrontDividerIds, setSelectedFrontDividerIds] = useState<string[]>([]);
+  
+  // ... rest of state ...
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isDataDialogOpen, setIsDataDialogOpen] = useState(false);
   const [zoomLevel, setZoomLevel] = useState(1);
@@ -59,6 +62,52 @@ export default function EditorPage({
   const [batchMapTrigger, setBatchMapTrigger] = useState(false);
   const [isLinking, setIsLinking] = useState(false);
   const [visualizeLocId, setVisualizeLocId] = useState<string | null>(null);
+
+  // Sync tab when viewMode changes
+  React.useEffect(() => {
+    if (viewMode === ViewMode.FRONT) {
+      setActiveTab('structure');
+    } else if (activeTab === 'structure') {
+      setActiveTab('visuals');
+    }
+  }, [viewMode]);
+
+  const handleNavigateToMapping = (location: LogicalLocation) => {
+    // 1. Check Top-Down Mapping
+    const topDownNode = visuals.find(v => v.locationId === location.id);
+    if (topDownNode) {
+      setSelectedNodeIds([topDownNode.id]);
+      setActiveTab('visuals');
+      setViewMode(ViewMode.TOP_DOWN);
+      return;
+    }
+
+    // 2. Check Front-View Mapping
+    const findsInStructure = (node: any, targetId: string): string | null => {
+      if (node.locationId === targetId) return node.id;
+      if (node.children) {
+        for (const child of node.children) {
+          const result = findsInStructure(child, targetId);
+          if (result) return result;
+        }
+      }
+      return null;
+    };
+
+    const parentNode = visuals.find(v => v.structure && findsInStructure(v.structure, location.id));
+    if (parentNode) {
+      const cellId = findsInStructure(parentNode.structure, location.id);
+      setSelectedNodeIds([parentNode.id]);
+      if (cellId) setSelectedFrontCellIds([cellId]);
+      setViewMode(ViewMode.FRONT);
+      setActiveTab('structure');
+      return;
+    }
+    
+    // Unmapped - just select the location and stay on locations tab
+    setSelectedNodeIds([location.id]);
+    setActiveTab('locations');
+  };
 
   // Derived state
   const layoutVisuals = useMemo(() => 
@@ -286,6 +335,8 @@ export default function EditorPage({
               visuals={layoutVisuals}
               selectedId={selectedNodeId}
               selectedIds={selectedNodeIds}
+              activeTab={activeTab}
+              onTabChange={setActiveTab}
               onSelect={(id) => setSelectedNodeIds(id ? [id] : [])}
               onSelectMultiple={setSelectedNodeIds}
               onCloneNode={handleCloneNode}
@@ -296,6 +347,7 @@ export default function EditorPage({
               onSelectFrontCell={setSelectedFrontCellIds}
               onUpdateNode={handleUpdateNode}
               onVisualizeLocation={handleVisualizeLocation}
+              onNavigateToMapping={handleNavigateToMapping}
             />
             <ToolRibbon 
               selectedTool={selectedTool}
