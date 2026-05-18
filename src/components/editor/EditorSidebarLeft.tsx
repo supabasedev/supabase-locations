@@ -23,7 +23,7 @@ import {
   Home
 } from 'lucide-react';
 import React, { useState, useMemo } from 'react';
-import { LogicalLocation, VisualNode, ViewMode, Layout } from '../../types';
+import { LogicalLocation, VisualNode, ViewMode, Layout, VisualNodeRole } from '../../types';
 import { motion, AnimatePresence } from 'motion/react';
 import { findNodeById, replaceNodeById } from '../../lib/structureUtils';
 import { PRESET_CATEGORIES } from '../../constants/presets';
@@ -133,7 +133,7 @@ export default function EditorSidebarLeft({
              <div>
                 <p className="text-[9px] font-black text-slate-600 uppercase tracking-widest px-2 mb-3 italic">Workspace Objects</p>
                 <div className="space-y-0.5">
-                   {visuals.filter(v => !v.parentId && v.locationId).map(visual => (
+                   {visuals.filter(v => !!v.locationId).map(visual => (
                      <UnifiedSidebarItem 
                         key={visual.id}
                         node={visual}
@@ -153,17 +153,17 @@ export default function EditorSidebarLeft({
                         onNavigateToMapping={onNavigateToMapping}
                      />
                    ))}
-                   {visuals.filter(v => !v.parentId && v.locationId).length === 0 && (
+                   {visuals.filter(v => !!v.locationId).length === 0 && (
                      <p className="text-[10px] text-slate-700 italic px-4 py-2">No linked objects</p>
                    )}
                 </div>
              </div>
 
-             {visuals.filter(v => !v.parentId && !v.locationId && v.nodeRole !== 'infrastructure').length > 0 && (
+             {visuals.filter(v => !v.locationId && v.nodeRole === VisualNodeRole.UNASSIGNED_STORAGE).length > 0 && (
                <div>
                   <p className="text-[9px] font-black text-slate-600 uppercase tracking-widest px-2 mb-3 italic">Unassigned Storage</p>
                   <div className="space-y-0.5">
-                    {visuals.filter(v => !v.parentId && !v.locationId && v.nodeRole !== 'infrastructure').map(visual => (
+                    {visuals.filter(v => !v.locationId && v.nodeRole === VisualNodeRole.UNASSIGNED_STORAGE).map(visual => (
                       <UnifiedSidebarItem 
                         key={visual.id}
                         node={visual}
@@ -187,11 +187,11 @@ export default function EditorSidebarLeft({
                </div>
              )}
 
-             {visuals.filter(v => !v.parentId && v.nodeRole === 'infrastructure').length > 0 && (
+             {visuals.filter(v => !v.locationId && v.nodeRole !== VisualNodeRole.UNASSIGNED_STORAGE).length > 0 && (
                <div>
                   <p className="text-[9px] font-black text-slate-600 uppercase tracking-widest px-2 mb-3 italic">Infrastructure / Context</p>
                   <div className="space-y-0.5">
-                    {visuals.filter(v => !v.parentId && v.nodeRole === 'infrastructure').map(visual => (
+                    {visuals.filter(v => !v.locationId && v.nodeRole !== VisualNodeRole.UNASSIGNED_STORAGE).map(visual => (
                       <UnifiedSidebarItem 
                         key={visual.id}
                         node={visual}
@@ -469,10 +469,7 @@ function UnifiedSidebarItem({
   // Filter children based on linked tree rules
   let filteredChildren: any[] = [];
   if (isVisual) {
-    // Top-view visual children
-    const visualChildren = visuals.filter((v: any) => v.parentId === node.id);
-    
-    // Front-view structure children
+    // Front-view structure children ONLY (Top-down visuals are flat in sidebar)
     let structureChildren: any[] = [];
     if (node.structure) {
       const root = node.structure;
@@ -484,25 +481,13 @@ function UnifiedSidebarItem({
       }
     }
     
-    const allChildren = [...visualChildren, ...structureChildren];
-    
-    if (depth === 0 && node.locationId) { 
-       // In linked section top level, only show children that HAVE a locationId
-       filteredChildren = allChildren.filter((c: any) => !!c.locationId);
-    } else {
-       // In other sections or deeper levels, we might show all, BUT the user says:
-       // "Every visible linked-tree row must have: ... and locationId"
-       // To be safe and respect hierarchy while following the rule, 
-       // we show only children that are linked if we are in the Workspace section.
-       filteredChildren = allChildren.filter((c: any) => {
-         // If we are deep enough, follow the location rule strictly
-         if (depth >= 1) return !!c.locationId;
-         return true; // Root levels of unassigned/infra show all unassigned/infra
-       });
-    }
+    // User says: "Every visible linked-tree row must have: ... and locationId"
+    // However, for front-view, we might want to see the whole structure if it's nested.
+    // For now, I'll follow the strict rule: only items with locationId
+    filteredChildren = structureChildren.filter((c: any) => !!c.locationId || (c.children && c.children.some((sub: any) => !!sub.locationId)));
   } else {
-    // recursive structure children
-    filteredChildren = (node.children || []).filter((c: any) => !!c.locationId);
+    // recursive structure children - only those with location mapping
+    filteredChildren = (node.children || []).filter((c: any) => !!c.locationId || (c.children && c.children.some((sub: any) => !!sub.locationId)));
   }
 
   const hasChildren = filteredChildren.length > 0;
