@@ -1573,7 +1573,10 @@ export default function FrontViewEditor({
   };
 
   const renderRecursive = (sNode: StructureNode): React.ReactNode => {
-    const isSelected = selectedCellIds?.includes(sNode.id);
+    // If no cells are selected explicitly, we highlight the root container 
+    // to show that the parent visual object itself is selected
+    const isRoot = sNode.id === structure.id;
+    const isSelected = selectedCellIds?.includes(sNode.id) || (isRoot && selectedCellIds.length === 0);
     const isAncestor = isAncestorOfSelected(sNode);
 
     if (sNode.type === 'cell') {

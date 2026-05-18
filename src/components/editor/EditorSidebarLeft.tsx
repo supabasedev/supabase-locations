@@ -466,11 +466,12 @@ function UnifiedSidebarItem({
   
   const linkedLocation = locations.find((l: any) => l.id === node.locationId);
   
-  // Resolve children
-  let children: any[] = [];
+  // Filter children based on linked tree rules
+  let filteredChildren: any[] = [];
   if (isVisual) {
     // Top-view visual children
     const visualChildren = visuals.filter((v: any) => v.parentId === node.id);
+    
     // Front-view structure children
     let structureChildren: any[] = [];
     if (node.structure) {
@@ -482,18 +483,36 @@ function UnifiedSidebarItem({
         structureChildren = [root];
       }
     }
-    children = [...visualChildren, ...structureChildren];
+    
+    const allChildren = [...visualChildren, ...structureChildren];
+    
+    if (depth === 0 && node.locationId) { 
+       // In linked section top level, only show children that HAVE a locationId
+       filteredChildren = allChildren.filter((c: any) => !!c.locationId);
+    } else {
+       // In other sections or deeper levels, we might show all, BUT the user says:
+       // "Every visible linked-tree row must have: ... and locationId"
+       // To be safe and respect hierarchy while following the rule, 
+       // we show only children that are linked if we are in the Workspace section.
+       filteredChildren = allChildren.filter((c: any) => {
+         // If we are deep enough, follow the location rule strictly
+         if (depth >= 1) return !!c.locationId;
+         return true; // Root levels of unassigned/infra show all unassigned/infra
+       });
+    }
   } else {
     // recursive structure children
-    children = node.children || [];
+    filteredChildren = (node.children || []).filter((c: any) => !!c.locationId);
   }
 
-  const hasChildren = children.length > 0;
+  const hasChildren = filteredChildren.length > 0;
 
   const handleSelect = (e: React.MouseEvent) => {
     e.stopPropagation();
     if (isVisual) {
       onSelect(node.id);
+      // Mutually exclusive selection: clear front cell when selecting parent visual node
+      onSelectFrontCell([]);
       setViewMode(ViewMode.TOP_DOWN);
     } else {
       onSelect(parentVisualId);
@@ -508,7 +527,7 @@ function UnifiedSidebarItem({
   };
 
   return (
-    <div className="select-none">
+    <div className="select-none relative">
       <div 
         onClick={handleSelect}
         className={`
@@ -518,7 +537,11 @@ function UnifiedSidebarItem({
             : 'hover:bg-slate-800 text-slate-500 border-transparent hover:text-slate-200'}
           ${node.locked ? 'opacity-70' : ''}
         `}
-        style={{ marginLeft: `${depth * 16}px` }}
+        style={{ 
+          marginLeft: depth === 0 ? 0 : 
+                     depth === 1 ? '12px' : 
+                     depth === 2 ? '20px' : '28px' 
+        }}
       >
         <div 
           onClick={toggleExpand}
@@ -590,9 +613,18 @@ function UnifiedSidebarItem({
             initial={{ height: 0, opacity: 0 }}
             animate={{ height: 'auto', opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
-            className="overflow-hidden"
+            className="overflow-hidden relative"
           >
-            {children.map((child: any) => (
+            {/* Hierarchy vertical line */}
+            <div 
+              className="absolute top-0 bottom-2 w-px bg-slate-800 pointer-events-none" 
+              style={{ 
+                left: depth === 0 ? '18px' : 
+                      depth === 1 ? '30px' : 
+                      depth === 2 ? '38px' : '46px'
+              }}
+            />
+            {filteredChildren.map((child: any) => (
               <UnifiedSidebarItem 
                 key={child.id}
                 node={child}
