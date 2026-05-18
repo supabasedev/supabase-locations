@@ -3,11 +3,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { 
   Search, 
-  Map as MapIcon, 
-  Layout as LayoutIcon, 
   SearchX, 
   X, 
   ArrowLeft,
@@ -18,7 +16,12 @@ import {
   Box,
   Layers,
   MapPin,
-  AlertTriangle
+  AlertTriangle,
+  ZoomIn,
+  ZoomOut,
+  Maximize,
+  ChevronDown,
+  ExternalLink
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
@@ -49,6 +52,12 @@ export interface InteractiveLocationMapPreviewProps {
   canEdit?: boolean;
 }
 
+interface ViewTransform {
+  x: number;
+  y: number;
+  scale: number;
+}
+
 export function InteractiveLocationMapPreview({
   layout,
   visualNodes,
@@ -64,6 +73,14 @@ export function InteractiveLocationMapPreview({
   const [selectedLocationId, setSelectedLocationId] = useState<string | null>(initialLocationId || null);
   const [selectedVisualNodeId, setSelectedVisualNodeId] = useState<string | null>(null);
   const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
+  const [expandedLocationIds, setExpandedLocationIds] = useState<Set<string>>(new Set());
+
+  // Transforms
+  const [topDownTransform, setTopDownTransform] = useState<ViewTransform>({ x: 0, y: 0, scale: 1 });
+  const [frontTransform, setFrontTransform] = useState<ViewTransform>({ x: 0, y: 0, scale: 1 });
+
+  const topDownContainerRef = useRef<HTMLDivElement>(null);
+  const frontContainerRef = useRef<HTMLDivElement>(null);
 
   // When location changes, clear direct visual selection
   useEffect(() => {
@@ -92,29 +109,149 @@ export function InteractiveLocationMapPreview({
     return null;
   }, [resolution]);
 
-  // Filtered locations for sidebar
-  const filteredResults = useMemo(() => {
-    if (!searchQuery) {
-      // Show all locations by default or some limited list
-      return locations.map(loc => ({
-        type: 'location',
-        id: loc.id,
-        code: loc.code,
-        name: loc.name,
-        resolution: resolveLocationVisual(loc.id, visualNodes, index)
-      }));
+  // Hierarchical Location Tree Data
+  const locationTree = useMemo(() => {
+    const map = new Map<string | null, LogicalLocation[]>();
+    locations.forEach(loc => {
+      const parentId = loc.parentId;
+      if (!map.has(parentId)) map.set(parentId, []);
+      map.get(parentId)!.push(loc);
+    });
+    return map;
+  }, [locations]);
+
+  // Filtered nodes that should be visible (due to search)
+  const visibleLocationIds = useMemo(() => {
+    if (!searchQuery) return null;
+    const ids = new Set<string>();
+    const query = searchQuery.toLowerCase();
+    
+    locations.forEach(loc => {
+      const matches = loc.code.toLowerCase().includes(query) || 
+                      loc.name.toLowerCase().includes(query) ||
+                      loc.pathCode.toLowerCase().includes(query);
+      
+      if (matches) {
+        ids.add(loc.id);
+        // Expand ancestors
+        let parentId = loc.parentId;
+        while (parentId) {
+          ids.add(parentId);
+          const parent = locations.find(l => l.id === parentId);
+          parentId = parent?.parentId || null;
+        }
+      }
+    });
+    return ids;
+  }, [searchQuery, locations]);
+
+  // Apply search expansion
+  useEffect(() => {
+    if (visibleLocationIds) {
+      setExpandedLocationIds(prev => {
+        const next = new Set(prev);
+        visibleLocationIds.forEach(id => next.add(id));
+        return next;
+      });
     }
-    return searchLocationsAndVisuals(searchQuery, locations, visualNodes);
-  }, [searchQuery, locations, visualNodes, index]);
+  }, [visibleLocationIds]);
+
+  // Initial fit to view
+  const fitTopDown = useCallback(() => {
+    if (!topDownContainerRef.current || visualNodes.length === 0) return;
+    const container = topDownContainerRef.current;
+    const { width, height } = container.getBoundingClientRect();
+    
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    visualNodes.forEach(v => {
+      minX = Math.min(minX, v.x);
+      minY = Math.min(minY, v.y);
+      maxX = Math.max(maxX, v.x + v.width);
+      maxY = Math.max(maxY, v.y + v.depth);
+    });
+
+    const contentWidth = maxX - minX;
+    const contentHeight = maxY - minY;
+    const padding = 100;
+    
+    const scale = Math.min(
+      (width - padding) / contentWidth,
+      (height - padding) / contentHeight
+    ) || 1;
+
+    setTopDownTransform({
+      x: (width - contentWidth * scale) / 2 - minX * scale,
+      y: (height - contentHeight * scale) / 2 - minY * scale,
+      scale
+    });
+  }, [visualNodes]);
+
+  const fitFront = useCallback(() => {
+    if (!frontContainerRef.current || !activeVisualNodeId) return;
+    const node = visualNodes.find(n => n.id === activeVisualNodeId);
+    if (!node) return;
+
+    const container = frontContainerRef.current;
+    const { width, height } = container.getBoundingClientRect();
+    
+    const contentWidth = node.width;
+    const contentHeight = node.height;
+    const padding = 60;
+    
+    const scale = Math.min(
+      (width - padding) / contentWidth,
+      (height - padding) / contentHeight
+    ) || 1;
+
+    setFrontTransform({
+      x: (width - contentWidth * scale) / 2,
+      y: (height - contentHeight * scale) / 2,
+      scale
+    });
+  }, [activeVisualNodeId, visualNodes]);
+
+  useEffect(() => {
+    fitTopDown();
+  }, [fitTopDown]);
+
+  useEffect(() => {
+    if (activeVisualNodeId) fitFront();
+  }, [activeVisualNodeId, fitFront]);
+
+  // Pan to selected node
+  useEffect(() => {
+    if (activeVisualNodeId && topDownContainerRef.current) {
+      const node = visualNodes.find(v => v.id === activeVisualNodeId);
+      if (node) {
+        const { width, height } = topDownContainerRef.current.getBoundingClientRect();
+        setTopDownTransform(prev => ({
+          ...prev,
+          x: width / 2 - (node.x + node.width / 2) * prev.scale,
+          y: height / 2 - (node.y + node.depth / 2) * prev.scale
+        }));
+      }
+    }
+  }, [activeVisualNodeId, visualNodes]);
+
+  const toggleExpand = (id: string) => {
+    setExpandedLocationIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const selectedLoc = locations.find(l => l.id === selectedLocationId);
 
   return (
     <div className={cn(
-      "flex flex-col h-full bg-slate-950 text-slate-200 overflow-hidden",
+      "flex flex-col h-full bg-slate-950 text-slate-200 overflow-hidden font-sans",
       !embedded && "fixed inset-0 z-50",
       embedded && "relative rounded-xl border border-slate-800"
     )}>
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-slate-800 bg-slate-900/50 backdrop-blur-sm">
+      <div className="flex items-center justify-between px-4 py-3 border-b border-slate-800 bg-slate-900/50 backdrop-blur-sm z-30">
         <div className="flex items-center gap-3">
           {!embedded && onClose && (
             <button 
@@ -125,8 +262,8 @@ export function InteractiveLocationMapPreview({
             </button>
           )}
           <div>
-            <h1 className="text-lg font-semibold tracking-tight leading-none">{layout.name}</h1>
-            <span className="text-xs text-slate-400 font-mono mt-1 block">Interactive Map Preview</span>
+            <h1 className="text-lg font-semibold tracking-tight leading-none text-white">{layout.name}</h1>
+            <span className="text-[10px] text-slate-400 font-black uppercase tracking-widest mt-1 block">Interactive Map Preview</span>
           </div>
         </div>
 
@@ -134,7 +271,7 @@ export function InteractiveLocationMapPreview({
           {canEdit && onOpenEditor && (
             <button 
               onClick={onOpenEditor}
-              className="flex items-center gap-2 px-3 py-1.5 bg-sky-500 hover:bg-sky-400 text-white rounded-lg text-sm font-medium transition-all"
+              className="flex items-center gap-2 px-3 py-1.5 bg-sky-500 hover:bg-sky-400 text-white rounded-lg text-sm font-medium transition-all shadow-lg shadow-sky-500/20"
             >
               <Edit2 className="w-4 h-4" />
               <span className="hidden sm:inline">Open Editor</span>
@@ -143,7 +280,7 @@ export function InteractiveLocationMapPreview({
           {!embedded && onClose && (
             <button 
               onClick={onClose}
-              className="p-2 hover:bg-slate-800 rounded-lg transition-colors"
+              className="p-2 hover:bg-slate-800 rounded-lg transition-colors text-slate-400 hover:text-white"
             >
               <X className="w-5 h-5" />
             </button>
@@ -152,117 +289,82 @@ export function InteractiveLocationMapPreview({
       </div>
 
       <div className="flex flex-1 overflow-hidden">
-        {/* Sidebar */}
+        {/* Left Panel: Location Tree */}
         <div className={cn(
-          "w-80 border-r border-slate-800 flex flex-col bg-slate-900/30",
+          "w-80 border-r border-slate-800 flex flex-col bg-slate-900/30 overflow-hidden",
           compact && "w-64"
         )}>
-          <div className="p-4 border-b border-slate-800">
+          <div className="p-4 border-b border-slate-800 bg-slate-900/50">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
               <input 
                 type="text"
-                placeholder="Search location code/name..."
+                placeholder="Search locations..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full bg-slate-950 border border-slate-800 rounded-lg py-2 pl-10 pr-4 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500/50 transition-all"
+                className="w-full bg-slate-950 border border-slate-800 rounded-lg py-2 pl-10 pr-4 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500/50 transition-all placeholder:text-slate-600"
               />
             </div>
           </div>
 
-          <div className="flex-1 overflow-y-auto custom-scrollbar p-2 space-y-1">
-            {filteredResults.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-12 text-slate-500 px-4 text-center">
-                <SearchX className="w-10 h-10 mb-3 opacity-20" />
-                <p className="text-sm">No locations found matching your search.</p>
-              </div>
-            ) : (
-              filteredResults.map((result: any) => (
-                <button
-                  key={`${result.type}-${result.id}`}
-                  onClick={() => {
-                    if (result.type === 'location') {
-                      setSelectedLocationId(result.id);
-                    } else if (result.type === 'visual_node') {
-                      if (result.locationId) {
-                        setSelectedLocationId(result.locationId);
-                      } else {
-                        setSelectedLocationId(null);
-                        setSelectedVisualNodeId(result.id);
-                      }
-                    } else if (result.type === 'structure_cell') {
-                      if (result.locationId) {
-                        setSelectedLocationId(result.locationId);
-                      } else {
-                        setSelectedLocationId(null);
-                        // For cells, we might want to track visualNodeId + structurePath
-                        // but for now let's just select the parent visual
-                        setSelectedVisualNodeId(result.parentVisualNodeId);
-                      }
-                    }
-                  }}
-                  className={cn(
-                    "w-full text-left p-3 rounded-lg transition-all group relative",
-                    selectedLocationId === (result.type === 'location' ? result.id : result.locationId)
-                      ? "bg-sky-500/10 border-sky-500/50 border shadow-[0_0_15px_-5px_rgba(14,165,233,0.3)]"
-                      : "hover:bg-slate-800/50 border border-transparent"
-                  )}
-                >
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="text-xs font-mono text-slate-400 truncate max-w-[70%]">
-                      {result.code || result.displayLabel || 'UNLINKED'}
-                    </span>
-                    {result.resolution && (
-                      <span className={cn(
-                        "text-[10px] uppercase font-bold px-1.5 py-0.5 rounded",
-                        result.resolution.status === 'top_down' && "bg-emerald-500/20 text-emerald-400",
-                        result.resolution.status === 'front_cell' && "bg-sky-500/20 text-sky-400",
-                        result.resolution.status === 'unmapped' && "bg-slate-800 text-slate-500",
-                        result.resolution.status === 'duplicate' && "bg-amber-500/20 text-amber-400"
-                      )}>
-                        {result.resolution.status.replace('_', ' ')}
-                      </span>
-                    )}
-                  </div>
-                  <div className="font-medium text-sm text-slate-200 line-clamp-1">
-                    {result.name || result.label}
-                  </div>
-                </button>
-              ))
-            )}
+          <div className="flex-1 overflow-y-auto custom-scrollbar p-2">
+            <LocationTree 
+              locations={locationTree.get(layout.rootLocationId || null) || []}
+              treeMap={locationTree}
+              selectedId={selectedLocationId}
+              onSelect={setSelectedLocationId}
+              expandedIds={expandedLocationIds}
+              onToggleExpand={toggleExpand}
+              visibleIds={visibleLocationIds}
+              index={index}
+              visualNodes={visualNodes}
+            />
           </div>
         </div>
 
         {/* Main Preview Area */}
         <div className="flex-1 flex flex-col relative bg-slate-950 overflow-hidden">
-          {/* Map Layer */}
-          <div className="flex-1 relative overflow-hidden">
-            <PreviewTopDownMap 
-              visuals={visualNodes}
-              selectedNodeId={activeVisualNodeId || selectedVisualNodeId}
-              onSelectNode={(node) => {
-                if (node.locationId) {
-                  setSelectedLocationId(node.locationId);
-                } else {
-                  setSelectedLocationId(null);
-                  setSelectedVisualNodeId(node.id);
-                }
-              }}
-              hoveredNodeId={hoveredNodeId}
-              onHoverNode={setHoveredNodeId}
-            />
+          {/* Top-Down Map Layer */}
+          <div className="flex-1 relative overflow-hidden" ref={topDownContainerRef}>
+            <PanZoomContainer 
+              transform={topDownTransform} 
+              onTransformChange={setTopDownTransform}
+              className="w-full h-full"
+            >
+              <PreviewTopDownMap 
+                visuals={visualNodes}
+                selectedNodeId={activeVisualNodeId || selectedVisualNodeId}
+                onSelectNode={(node) => {
+                  if (node.locationId) setSelectedLocationId(node.locationId);
+                  else {
+                    setSelectedLocationId(null);
+                    setSelectedVisualNodeId(node.id);
+                  }
+                }}
+                hoveredNodeId={hoveredNodeId}
+                onHoverNode={setHoveredNodeId}
+                transform={topDownTransform}
+              />
+            </PanZoomContainer>
 
-            {/* Float Controls */}
-            <div className="absolute top-4 right-4 flex flex-col gap-2">
-              <div className="bg-slate-900/80 backdrop-blur border border-slate-800 rounded-lg p-1 shadow-xl">
-                <button className="p-2 hover:bg-slate-800 rounded-md transition-colors" title="Zoom In">
-                  <Maximize2 className="w-4 h-4" />
+            {/* Float Controls Top-Down */}
+            <div className="absolute top-4 right-4 flex flex-col gap-2 z-10">
+              <div className="bg-slate-900/80 backdrop-blur border border-slate-800 rounded-xl p-1 shadow-2xl flex flex-col gap-1">
+                <button onClick={() => setTopDownTransform(t => ({ ...t, scale: t.scale * 1.2 }))} className="p-2 hover:bg-slate-800 rounded-lg transition-colors text-slate-400 hover:text-white" title="Zoom In">
+                  <ZoomIn className="w-4 h-4" />
+                </button>
+                <button onClick={() => setTopDownTransform(t => ({ ...t, scale: t.scale / 1.2 }))} className="p-2 hover:bg-slate-800 rounded-lg transition-colors text-slate-400 hover:text-white" title="Zoom Out">
+                  <ZoomOut className="w-4 h-4" />
+                </button>
+                <div className="h-px bg-slate-800 mx-1" />
+                <button onClick={fitTopDown} className="p-2 hover:bg-slate-800 rounded-lg transition-colors text-slate-400 hover:text-white" title="Fit to View">
+                  <Maximize className="w-4 h-4" />
                 </button>
               </div>
             </div>
           </div>
 
-          {/* Front View Panel (Slide up) */}
+          {/* Front View Panel */}
           <AnimatePresence>
             {activeVisualNodeId && visualNodes.find(n => n.id === activeVisualNodeId)?.structure && (
               <motion.div 
@@ -270,36 +372,60 @@ export function InteractiveLocationMapPreview({
                 animate={{ y: 0 }}
                 exit={{ y: "100%" }}
                 transition={{ type: "spring", damping: 25, stiffness: 200 }}
-                className="absolute inset-x-0 bottom-0 h-1/2 bg-slate-900 border-t border-slate-700 shadow-2xl z-20 flex flex-col"
+                className="absolute inset-x-0 bottom-0 h-[45%] bg-slate-900 border-t border-slate-800 shadow-[0_-20px_50px_rgba(0,0,0,0.5)] z-20 flex flex-col"
               >
-                <div className="flex items-center justify-between px-4 py-2 bg-slate-800/50 border-b border-slate-700">
-                  <div className="flex items-center gap-2">
-                    <Layers className="w-4 h-4 text-sky-400" />
-                    <span className="text-sm font-semibold tracking-tight">
-                      {visualNodes.find(n => n.id === activeVisualNodeId)?.label} - Front View
-                    </span>
+                <div className="flex items-center justify-between px-4 py-2.5 bg-slate-800/30 border-b border-slate-800 backdrop-blur-md">
+                  <div className="flex items-center gap-3">
+                    <div className="p-1.5 bg-sky-500/10 rounded-lg border border-sky-500/20">
+                      <Layers className="w-4 h-4 text-sky-400" />
+                    </div>
+                    <div>
+                      <span className="text-sm font-bold tracking-tight text-white block">
+                        {visualNodes.find(n => n.id === activeVisualNodeId)?.label}
+                      </span>
+                      <span className="text-[10px] text-slate-500 font-mono uppercase tracking-widest">Front View Structure</span>
+                    </div>
                   </div>
-                  <button 
-                    onClick={() => setSelectedLocationId(null)}
-                    className="p-1 hover:bg-slate-700 rounded transition-colors"
-                  >
-                    <X className="w-4 h-4" />
-                  </button>
+                  
+                  <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1 bg-slate-950/50 p-1 rounded-lg border border-slate-800 mr-2">
+                      <button onClick={() => setFrontTransform(t => ({ ...t, scale: t.scale * 1.2 }))} className="p-1.5 hover:bg-slate-800 rounded text-slate-400 transition-colors">
+                        <ZoomIn className="w-3.5 h-3.5" />
+                      </button>
+                      <button onClick={() => setFrontTransform(t => ({ ...t, scale: t.scale / 1.2 }))} className="p-1.5 hover:bg-slate-800 rounded text-slate-400 transition-colors">
+                        <ZoomOut className="w-3.5 h-3.5" />
+                      </button>
+                      <button onClick={fitFront} className="p-1.5 hover:bg-slate-800 rounded text-slate-400 transition-colors">
+                        <Maximize className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                    <button 
+                      onClick={() => setSelectedLocationId(null)}
+                      className="p-2 hover:bg-slate-800 rounded-lg transition-colors text-slate-500 hover:text-white"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
                 </div>
-                <div className="flex-1 overflow-hidden p-6 bg-slate-950/50 relative">
-                  <PreviewFrontView 
-                    node={visualNodes.find(n => n.id === activeVisualNodeId || n.id === selectedVisualNodeId)!}
-                    selectedStructureNodeId={activeStructureNodeId}
-                    onSelectCell={(cell) => {
-                      if (cell.locationId) {
-                        setSelectedLocationId(cell.locationId);
-                      } else {
-                        // Just highlight the cell
-                        setSelectedLocationId(null);
-                        setSelectedVisualNodeId(activeVisualNodeId || selectedVisualNodeId);
-                      }
-                    }}
-                  />
+                
+                <div className="flex-1 overflow-hidden relative bg-slate-950/80" ref={frontContainerRef}>
+                  <PanZoomContainer 
+                    transform={frontTransform}
+                    onTransformChange={setFrontTransform}
+                    className="w-full h-full"
+                  >
+                    <PreviewFrontView 
+                      node={visualNodes.find(n => n.id === activeVisualNodeId || n.id === selectedVisualNodeId)!}
+                      selectedStructureNodeId={activeStructureNodeId}
+                      onSelectCell={(cell) => {
+                        if (cell.locationId) setSelectedLocationId(cell.locationId);
+                        else {
+                          setSelectedLocationId(null);
+                          setSelectedVisualNodeId(activeVisualNodeId);
+                        }
+                      }}
+                    />
+                  </PanZoomContainer>
                 </div>
               </motion.div>
             )}
@@ -307,34 +433,52 @@ export function InteractiveLocationMapPreview({
         </div>
 
         {/* Details Panel */}
-        <div className="w-72 border-l border-slate-800 bg-slate-900/30 flex flex-col">
-          <div className="p-4 border-b border-slate-800">
-            <h2 className="text-xs font-bold uppercase tracking-widest text-slate-500 mb-4 flex items-center gap-2">
+        <div className="w-80 border-l border-slate-800 bg-slate-900/30 flex flex-col z-30">
+          <div className="p-5 border-b border-slate-800 bg-slate-900/50">
+            <h2 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500 mb-6 flex items-center gap-2">
               <Info className="w-3.5 h-3.5" />
-              Selection Details
+              Location Details
             </h2>
             
-            {resolution ? (
+            {resolution && selectedLoc ? (
               <div className="space-y-6">
-                {/* Location Info */}
                 <div>
-                  <div className="text-2xl font-bold tracking-tight text-white mb-1">
-                    {locations.find(l => l.id === selectedLocationId)?.code || 'Unknown'}
+                  <div className="inline-flex items-center px-2 py-0.5 rounded bg-sky-500/10 border border-sky-500/20 text-[10px] font-black text-sky-400 mb-2 uppercase tracking-widest">
+                    {selectedLoc.role}
                   </div>
-                  <div className="text-sm text-slate-400">
-                    {locations.find(l => l.id === selectedLocationId)?.name || 'Logical Location'}
+                  <div className="text-3xl font-bold tracking-tight text-white mb-1">
+                    {selectedLoc.code}
+                  </div>
+                  <div className="text-sm font-medium text-slate-400">
+                    {selectedLoc.name}
                   </div>
                 </div>
 
-                {/* Mapping Status Card */}
+                <div className="space-y-3">
+                  <div className="space-y-1.5">
+                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-600">Physical Path</p>
+                    <div className="text-xs font-mono text-slate-300 break-all bg-slate-950/50 p-2 rounded-lg border border-slate-800">
+                      {selectedLoc.pathCode}
+                    </div>
+                  </div>
+                  
+                  <div className="space-y-1.5">
+                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-600">Workspace</p>
+                    <div className="text-xs font-medium text-slate-400 flex items-center gap-2">
+                      <span className="w-1.5 h-1.5 rounded-full bg-slate-600" />
+                      {layout.name}
+                    </div>
+                  </div>
+                </div>
+
                 <div className={cn(
-                  "p-4 rounded-xl border",
-                  resolution.status === 'top_down' && "bg-emerald-500/5 border-emerald-500/20",
-                  resolution.status === 'front_cell' && "bg-sky-500/5 border-sky-500/20",
-                  resolution.status === 'unmapped' && "bg-slate-800/50 border-slate-700",
-                  resolution.status === 'duplicate' && "bg-amber-500/5 border-amber-500/20"
+                  "p-4 rounded-xl border bg-slate-950/50 relative overflow-hidden",
+                  resolution.status === 'top_down' && "border-emerald-500/30 shadow-[0_0_20px_-10px_rgba(16,185,129,0.3)]",
+                  resolution.status === 'front_cell' && "border-sky-500/30 shadow-[0_0_20px_-10px_rgba(14,165,233,0.3)]",
+                  resolution.status === 'unmapped' && "border-slate-800",
+                  resolution.status === 'duplicate' && "border-amber-500/30"
                 )}>
-                  <div className="flex items-center gap-2 mb-2">
+                  <div className="flex items-center gap-2 mb-3 relative z-10">
                     <MapPin className={cn(
                       "w-4 h-4",
                       resolution.status === 'top_down' && "text-emerald-400",
@@ -342,73 +486,60 @@ export function InteractiveLocationMapPreview({
                       resolution.status === 'unmapped' && "text-slate-500",
                       resolution.status === 'duplicate' && "text-amber-400"
                     )} />
-                    <span className="text-xs font-bold uppercase tracking-wide">
+                    <span className={cn(
+                      "text-xs font-black uppercase tracking-widest",
+                      resolution.status === 'top_down' && "text-emerald-400",
+                      resolution.status === 'front_cell' && "text-sky-400",
+                      resolution.status === 'unmapped' && "text-slate-400",
+                      resolution.status === 'duplicate' && "text-amber-400"
+                    )}>
                       {resolution.status.replace('_', ' ')}
                     </span>
                   </div>
                   
-                  <div className="text-xs text-slate-400 leading-relaxed space-y-2">
-                    {resolution.status === 'top_down' && <p>Placed directly on the warehouse floor map.</p>}
-                    {resolution.status === 'front_cell' && <p>Located inside <strong>{resolution.parentVisualNode.label}</strong> structure.</p>}
+                  <div className="text-[11px] text-slate-400 leading-relaxed relative z-10">
+                    {resolution.status === 'top_down' && <p>Mapped to physical object <span className="text-slate-200">"{resolution.visualNode.label}"</span> on top-down view.</p>}
+                    {resolution.status === 'front_cell' && <p>Mapped to <span className="text-slate-200 font-bold">{resolution.structureNode.displayLabel || resolution.structureNode.label}</span> inside <span className="text-slate-200">"{resolution.parentVisualNode.label}"</span>.</p>}
                     {resolution.status === 'unmapped' && (
-                      <p>This location exists in the system but has no visual representation on this workspace.</p>
+                      <p>This logical location has no physical representation on the map yet.</p>
                     )}
                     {resolution.status === 'duplicate' && (
-                      <div className="space-y-1">
-                        <p className="text-amber-400/80 font-medium">Warning: Duplicate Mapping</p>
-                        <p>Found {resolution.matches.length} visual representations:</p>
-                        <ul className="list-disc list-inside mt-1 font-mono text-[10px]">
-                          {resolution.matches.map((m, i) => (
-                            <li key={i}>
-                              {m.type === 'top_down' ? m.visualNode.label : `${m.parentVisualNode.label} > ${m.structureNode.displayLabel || m.structureNode.label}`}
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    )}
-                    {index.unresolvedReferences.includes(selectedLocationId!) && (
-                      <div className="flex items-start gap-2 mt-2 p-2 bg-rose-500/10 border border-rose-500/20 rounded text-rose-400">
-                        <AlertTriangle className="w-3 h-3 shrink-0 mt-0.5" />
-                        <p>Broken Reference: This location ID was not found in the global location registry.</p>
-                      </div>
+                      <p>Warning: This location code is mapped to multiple physical nodes.</p>
                     )}
                   </div>
                 </div>
 
-                {/* Actions Placeholder */}
-                <div className="pt-4 border-t border-slate-800 flex flex-col gap-2">
-                  <button className="flex items-center justify-between px-3 py-2 bg-slate-800 hover:bg-slate-700 rounded-lg text-xs font-medium transition-colors">
-                    <span>View Inventory</span>
-                    <ChevronRight className="w-3 h-3 opacity-50" />
-                  </button>
-                </div>
-              </div>
-            ) : selectedVisualNodeId ? (
-              <div className="space-y-6">
-                 {/* Visual Only Info */}
-                 <div>
-                  <div className="text-2xl font-bold tracking-tight text-white mb-1">
-                    {visualNodes.find(v => v.id === selectedVisualNodeId)?.label || 'Unknown'}
-                  </div>
-                  <div className="text-sm text-slate-400">
-                    Physical Object / Visual Only
-                  </div>
-                </div>
+                <div className="pt-4 border-t border-slate-800 space-y-4">
+                   <div>
+                     <p className="text-[10px] font-black uppercase tracking-widest text-slate-600 mb-2">Capabilities</p>
+                     <div className="flex flex-wrap gap-1.5">
+                       {Object.entries(selectedLoc.capabilities).map(([key, val]) => (
+                         val && (
+                           <div key={key} className="px-2 py-0.5 rounded bg-slate-800 border border-slate-700 text-[9px] font-bold text-slate-300 uppercase tracking-tight">
+                             {key.replace(/([A-Z])/g, ' $1').trim()}
+                           </div>
+                         )
+                       ))}
+                     </div>
+                   </div>
 
-                <div className="p-4 rounded-xl border bg-slate-800/50 border-slate-700">
-                  <div className="flex items-center gap-2 mb-2">
-                    <Info className="w-4 h-4 text-slate-500" />
-                    <span className="text-xs font-bold uppercase tracking-wide">Information</span>
+                  <div className="flex flex-col gap-2">
+                    <button className="flex items-center justify-between px-3 py-2 bg-slate-800 hover:bg-slate-700 rounded-lg text-xs font-semibold text-slate-300 transition-colors w-full group">
+                      <span className="flex items-center gap-2 group-hover:text-white">
+                        <Box className="w-3.5 h-3.5" />
+                        View Inventory
+                      </span>
+                      <ExternalLink className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity" />
+                    </button>
                   </div>
-                  <p className="text-xs text-slate-400 leading-relaxed">
-                    This is a visual-only object. It has no operational logical location assigned to it.
-                  </p>
                 </div>
               </div>
             ) : (
-              <div className="flex flex-col items-center justify-center py-20 text-center px-6">
-                <Box className="w-12 h-12 mb-4 opacity-10 text-slate-400" />
-                <p className="text-sm text-slate-500 italic">Select a location to view its physical mapping and details.</p>
+              <div className="flex flex-col items-center justify-center py-24 text-center px-8">
+                <div className="w-16 h-16 bg-slate-900 border border-slate-800 rounded-2xl flex items-center justify-center mb-6 shadow-2xl">
+                  <MapPin className="w-8 h-8 text-slate-700" />
+                </div>
+                <p className="text-sm text-slate-500 italic leading-relaxed">Select a location from the explorer to view physical mapping details.</p>
               </div>
             )}
           </div>
@@ -418,58 +549,229 @@ export function InteractiveLocationMapPreview({
   );
 }
 
-// --- Sub-components (Internal to this file for now) ---
+// --- Internal Helper Components ---
+
+function PanZoomContainer({ 
+  children, 
+  transform, 
+  onTransformChange, 
+  className 
+}: { 
+  children: React.ReactNode; 
+  transform: ViewTransform;
+  onTransformChange: (t: ViewTransform) => void;
+  className?: string;
+}) {
+  const isDragging = useRef(false);
+  const lastPos = useRef({ x: 0, y: 0 });
+
+  const handleMouseDown = useCallback((e: React.MouseEvent) => {
+    isDragging.current = true;
+    lastPos.current = { x: e.clientX, y: e.clientY };
+  }, []);
+
+  const handleMouseMove = useCallback((e: React.MouseEvent) => {
+    if (!isDragging.current) return;
+    const dx = e.clientX - lastPos.current.x;
+    const dy = e.clientY - lastPos.current.y;
+    onTransformChange({
+      ...transform,
+      x: transform.x + dx,
+      y: transform.y + dy
+    });
+    lastPos.current = { x: e.clientX, y: e.clientY };
+  }, [transform, onTransformChange]);
+
+  const handleMouseUp = useCallback(() => {
+    isDragging.current = false;
+  }, []);
+
+  const handleWheel = useCallback((e: React.WheelEvent) => {
+    e.preventDefault();
+    const zoomSpeed = 0.001;
+    const delta = -e.deltaY * zoomSpeed;
+    const newScale = Math.min(Math.max(transform.scale + delta, 0.1), 10);
+    
+    // Zoom toward mouse position
+    const rect = e.currentTarget.getBoundingClientRect();
+    const mouseX = e.clientX - rect.left;
+    const mouseY = e.clientY - rect.top;
+
+    const scaleRatio = newScale / transform.scale;
+    const dx = (mouseX - transform.x) * (1 - scaleRatio);
+    const dy = (mouseY - transform.y) * (1 - scaleRatio);
+
+    onTransformChange({
+      x: transform.x + dx,
+      y: transform.y + dy,
+      scale: newScale
+    });
+  }, [transform, onTransformChange]);
+
+  return (
+    <div 
+      className={cn("cursor-grab active:cursor-grabbing select-none overflow-hidden", className)}
+      onMouseDown={handleMouseDown}
+      onMouseMove={handleMouseMove}
+      onMouseUp={handleMouseUp}
+      onMouseLeave={handleMouseUp}
+      onWheel={handleWheel}
+    >
+      <div 
+        style={{ 
+          transform: `translate(${transform.x}px, ${transform.y}px) scale(${transform.scale})`,
+          transformOrigin: '0 0'
+        }}
+        className="w-full h-full transform-gpu transition-transform duration-75 ease-out"
+      >
+        {children}
+      </div>
+    </div>
+  );
+}
+
+function LocationTree({ 
+  locations, 
+  treeMap, 
+  selectedId, 
+  onSelect, 
+  expandedIds, 
+  onToggleExpand, 
+  visibleIds,
+  index,
+  visualNodes,
+  depth = 0 
+}: {
+  locations: LogicalLocation[];
+  treeMap: Map<string | null, LogicalLocation[]>;
+  selectedId: string | null;
+  onSelect: (id: string) => void;
+  expandedIds: Set<string>;
+  onToggleExpand: (id: string) => void;
+  visibleIds: Set<string> | null;
+  index: MappingIndex;
+  visualNodes: VisualNode[];
+  depth?: number;
+}) {
+  return (
+    <div className="space-y-0.5">
+      {locations
+        .filter(loc => !visibleIds || visibleIds.has(loc.id))
+        .sort((a, b) => a.code.localeCompare(b.code))
+        .map(loc => {
+          const children = treeMap.get(loc.id) || [];
+          const isExpanded = expandedIds.has(loc.id);
+          const isSelected = selectedId === loc.id;
+          const resolution = resolveLocationVisual(loc.id, visualNodes, index);
+
+          return (
+            <div key={loc.id}>
+              <button
+                onClick={() => onSelect(loc.id)}
+                className={cn(
+                  "w-full text-left p-1.5 rounded-lg flex items-center gap-2 group relative transition-all",
+                  isSelected ? "bg-sky-500/15 text-white" : "hover:bg-slate-800/50 text-slate-400"
+                )}
+                style={{ paddingLeft: `${depth * 12 + 8}px` }}
+              >
+                {depth > 0 && (
+                  <div className="absolute left-0 top-0 bottom-0 w-px bg-slate-800 pointer-events-none" style={{ left: `${depth * 12 - 4}px` }} />
+                )}
+                
+                {children.length > 0 && (
+                  <div 
+                    onClick={(e) => { e.stopPropagation(); onToggleExpand(loc.id); }}
+                    className="p-0.5 hover:bg-slate-700 rounded transition-colors"
+                  >
+                    <ChevronDown className={cn("w-3 h-3 transition-transform", !isExpanded && "-rotate-90")} />
+                  </div>
+                )}
+                {children.length === 0 && <div className="w-4" />}
+
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center justify-between gap-2 overflow-hidden">
+                    <span className={cn(
+                      "text-[10px] font-mono leading-none truncate",
+                      isSelected ? "text-sky-300" : "text-slate-500"
+                    )}>
+                      {loc.code}
+                    </span>
+                    <span className={cn(
+                      "text-[9px] font-black uppercase px-1 rounded-sm shrink-0",
+                      resolution.status === 'top_down' && "bg-emerald-500/20 text-emerald-400",
+                      resolution.status === 'front_cell' && "bg-sky-500/20 text-sky-400",
+                      resolution.status === 'unmapped' && "bg-slate-800 text-slate-600",
+                      resolution.status === 'duplicate' && "bg-amber-500/20 text-amber-400"
+                    )}>
+                      {resolution.status === 'top_down' && 'TOP'}
+                      {resolution.status === 'front_cell' && 'FRNT'}
+                      {resolution.status === 'unmapped' && 'NO'}
+                      {resolution.status === 'duplicate' && 'DUP'}
+                    </span>
+                  </div>
+                  <div className={cn(
+                    "text-[11px] truncate leading-tight mt-0.5",
+                    isSelected ? "text-white" : "text-slate-300 group-hover:text-white"
+                  )}>
+                    {loc.name}
+                  </div>
+                </div>
+              </button>
+
+              {isExpanded && children.length > 0 && (
+                <LocationTree 
+                  locations={children}
+                  treeMap={treeMap}
+                  selectedId={selectedId}
+                  onSelect={onSelect}
+                  expandedIds={expandedIds}
+                  onToggleExpand={onToggleExpand}
+                  visibleIds={visibleIds}
+                  index={index}
+                  visualNodes={visualNodes}
+                  depth={depth + 1}
+                />
+              )}
+            </div>
+          );
+        })}
+    </div>
+  );
+}
 
 function PreviewTopDownMap({ 
   visuals, 
   selectedNodeId, 
   onSelectNode,
   hoveredNodeId,
-  onHoverNode
+  onHoverNode,
+  transform
 }: {
   visuals: VisualNode[];
   selectedNodeId: string | null;
   onSelectNode: (node: VisualNode) => void;
   hoveredNodeId: string | null;
   onHoverNode: (id: string | null) => void;
+  transform: ViewTransform;
 }) {
-  // Simple SVG renderer for read-only preview
-  // Calculate viewbox from visuals
-  const bounds = useMemo(() => {
-    if (visuals.length === 0) return { minX: 0, minY: 0, maxX: 1000, maxY: 1000 };
-    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-    visuals.forEach(v => {
-      minX = Math.min(minX, v.x);
-      minY = Math.min(minY, v.y);
-      maxX = Math.max(maxX, v.x + v.width);
-      maxY = Math.max(maxY, v.y + v.depth);
-    });
-    // Add margin
-    const margin = 200;
-    return {
-      minX: minX - margin,
-      minY: minY - margin,
-      width: (maxX - minX) + margin * 2,
-      height: (maxY - minY) + margin * 2
-    };
-  }, [visuals]);
+  // Use a fixed virtual coordinate space
+  const viewSize = 10000; 
 
   return (
-    <div className="w-full h-full cursor-grab active:cursor-grabbing overflow-hidden">
+    <div className="w-full h-full relative">
       <svg
-        viewBox={`${bounds.minX} ${bounds.minY} ${bounds.width} ${bounds.height}`}
-        className="w-full h-full transform-gpu"
-        preserveAspectRatio="xMidYMid meet"
+        width={viewSize}
+        height={viewSize}
+        viewBox={`0 0 ${viewSize} ${viewSize}`}
+        className="overflow-visible"
       >
-        {/* Background Grid - Optional for flavor */}
         <defs>
-          <pattern id="grid" width="100" height="100" patternUnits="userSpaceOnUse">
-            <path d="M 100 0 L 0 0 0 100" fill="none" stroke="currentColor" strokeWidth="1" className="text-slate-800/50" />
+          <pattern id="previewGrid" width="200" height="200" patternUnits="userSpaceOnUse">
+            <path d="M 200 0 L 0 0 0 200" fill="none" stroke="currentColor" strokeWidth="0.5" className="text-slate-800/30" />
           </pattern>
         </defs>
-        <rect x={bounds.minX} y={bounds.minY} width={bounds.width} height={bounds.height} fill="url(#grid)" />
+        <rect x="0" y="0" width={viewSize} height={viewSize} fill="url(#previewGrid)" />
 
-        {/* Visual Nodes */}
         {visuals.map(node => {
           const isSelected = selectedNodeId === node.id;
           const isHovered = hoveredNodeId === node.id;
@@ -478,47 +780,47 @@ function PreviewTopDownMap({
           return (
             <g 
               key={node.id} 
-              className="cursor-pointer group"
-              onClick={() => onSelectNode(node)}
+              className="group pointer-events-auto"
+              onClick={(e) => { e.stopPropagation(); onSelectNode(node); }}
               onMouseEnter={() => onHoverNode(node.id)}
               onMouseLeave={() => onHoverNode(null)}
               transform={`rotate(${node.rotation}, ${node.x + node.width / 2}, ${node.y + node.depth / 2})`}
             >
-              {/* Highlight Ring */}
               {isSelected && (
                 <rect 
-                  x={node.x - 4} y={node.y - 4} 
-                  width={node.width + 8} height={node.depth + 8}
+                  x={node.x - 8 / transform.scale} y={node.y - 8 / transform.scale} 
+                  width={node.width + 16 / transform.scale} height={node.depth + 16 / transform.scale}
                   fill="none" 
                   stroke="#0ea5e9" 
-                  strokeWidth="4" 
-                  rx="6"
+                  strokeWidth={4 / transform.scale} 
+                  rx={8 / transform.scale}
                   className="animate-pulse"
                 />
               )}
               
-              {/* Main Shape */}
               <rect 
                 x={node.x} y={node.y} 
                 width={node.width} height={node.depth}
                 fill={isVisualOnly ? '#334155' : node.color}
-                fillOpacity={isVisualOnly ? 0.3 : 0.8}
-                stroke={isSelected ? '#0ea5e9' : isHovered ? '#fff' : 'rgba(255,255,255,0.1)'}
-                strokeWidth={isSelected ? 3 : isHovered ? 2 : 1}
-                rx="4"
-                className="transition-all duration-200"
+                fillOpacity={isVisualOnly ? 0.2 : 0.8}
+                stroke={isSelected ? '#0ea5e9' : isHovered ? '#fff' : 'rgba(255,255,255,0.05)'}
+                strokeWidth={isSelected ? 4 / transform.scale : 1 / transform.scale}
+                rx={4 / transform.scale}
+                className="transition-colors duration-200"
               />
 
-              {/* Label */}
-              {(node.width > 30 && node.depth > 20) && (
+              {(node.width * transform.scale > 50 && node.depth * transform.scale > 30) && (
                 <text 
                   x={node.x + node.width / 2} 
                   y={node.y + node.depth / 2}
                   textAnchor="middle"
                   dominantBaseline="middle"
                   fill={isVisualOnly ? '#64748b' : '#fff'}
-                  className="text-[10px] font-bold select-none pointer-events-none uppercase tracking-tighter"
-                  style={{ textShadow: '0 1px 2px rgba(0,0,0,0.5)' }}
+                  className="font-black select-none pointer-events-none uppercase tracking-tighter"
+                  style={{ 
+                    fontSize: `${Math.max(10, 12 / transform.scale)}px`,
+                    textShadow: '0 1px 4px rgba(0,0,0,0.8)' 
+                  }}
                 >
                   {node.label}
                 </text>
@@ -543,20 +845,18 @@ function PreviewFrontView({
   if (!node.structure) return null;
 
   return (
-    <div className="w-full h-full flex items-center justify-center">
-      <div 
-        className="relative bg-slate-900 border-2 border-slate-700 shadow-2xl rounded"
-        style={{
-          width: 'min(90%, 800px)',
-          aspectRatio: `${node.width} / ${node.height}`,
-        }}
-      >
-        <StructureRenderer 
-          node={node.structure} 
-          selectedId={selectedStructureNodeId}
-          onSelect={onSelectCell}
-        />
-      </div>
+    <div 
+      className="bg-slate-900 border-4 border-slate-700 shadow-[0_30px_60px_-12px_rgba(0,0,0,0.5)] rounded-lg overflow-hidden"
+      style={{
+        width: `${node.width}px`,
+        height: `${node.height}px`,
+      }}
+    >
+      <StructureRenderer 
+        node={node.structure} 
+        selectedId={selectedStructureNodeId}
+        onSelect={onSelectCell}
+      />
     </div>
   );
 }
@@ -571,7 +871,6 @@ function StructureRenderer({
   onSelect: (node: StructureNode) => void;
 }) {
   const isSelected = selectedId === node.id;
-  const isCell = node.type === 'cell';
 
   if (node.type === 'container' && node.children) {
     const isHorizontal = node.split === 'horizontal';
@@ -588,7 +887,7 @@ function StructureRenderer({
             style={{ flex: child.size }}
             className={cn(
               "relative",
-              idx < node.children!.length - 1 && (isHorizontal ? "border-b border-slate-700/50" : "border-r border-slate-700/50")
+              idx < node.children!.length - 1 && (isHorizontal ? "border-b border-slate-700/80" : "border-r border-slate-700/80")
             )}
           >
             <StructureRenderer node={child} selectedId={selectedId} onSelect={onSelect} />
@@ -604,32 +903,31 @@ function StructureRenderer({
       className={cn(
         "w-full h-full flex items-center justify-center transition-all group overflow-hidden relative",
         isSelected ? "bg-sky-500/20 z-10" : "hover:bg-white/5",
-        !node.locationId && "bg-slate-900/50"
+        !node.locationId && "bg-slate-900/30"
       )}
     >
       {isSelected && (
-        <div className="absolute inset-0 border-2 border-sky-400 inset-shadow-sky-500/20 animate-in fade-in zoom-in-95 duration-200" />
+        <div className="absolute inset-0 border-[3px] border-sky-400 z-10 shadow-[inset_0_0_20px_rgba(14,165,233,0.3)]" />
       )}
       
-      <div className="flex flex-col items-center gap-0.5 p-1">
+      <div className="flex flex-col items-center gap-1 p-2 relative z-10">
         <span className={cn(
-          "text-[10px] font-bold font-mono tracking-tighter truncate max-w-full",
-          isSelected ? "text-sky-300" : node.locationId ? "text-slate-400" : "text-slate-600"
+          "text-xs font-bold leading-none truncate max-w-full uppercase tracking-tight",
+          isSelected ? "text-white" : node.locationId ? "text-slate-400 group-hover:text-white" : "text-slate-700"
         )}>
           {node.displayLabel || node.label}
         </span>
         {isSelected && (
           <motion.div 
-            initial={{ scale: 0 }} 
-            animate={{ scale: 1 }} 
-            className="w-1 h-1 bg-sky-400 rounded-full" 
+            layoutId="active-indicator"
+            className="w-1.5 h-1.5 bg-sky-400 rounded-full shadow-[0_0_8px_rgba(14,165,233,0.8)]" 
           />
         )}
       </div>
 
       {!node.locationId && (
-        <div className="absolute top-0.5 right-0.5">
-           <AlertTriangle className="w-2.5 h-2.5 text-slate-700" />
+        <div className="absolute top-1 right-1 opacity-20">
+           <AlertTriangle className="w-3 h-3 text-slate-400" />
         </div>
       )}
     </button>
