@@ -1240,9 +1240,60 @@ export default function EditorSidebarRight({
                 </div>
              </div>
 
-             {/* Visual Role Section */}
-             <section className="space-y-4 pt-4 border-t border-slate-800 px-1">
-               <SectionHeader icon={<Settings2 />} label="Mapping Strategy" />
+              {/* Preview Presentation Section */}
+              <section className="space-y-4 pt-4 border-t border-slate-800 px-1">
+                <SectionHeader icon={<Eye />} label="Preview Presentation" />
+                <div className="p-4 rounded-2xl bg-slate-800/40 border border-slate-750 space-y-3">
+                  <div className="flex items-center justify-between p-2 hover:bg-slate-800/50 rounded-xl transition-colors">
+                    <div className="flex flex-col">
+                      <span className="text-[10px] font-black text-slate-300 uppercase tracking-widest">Visible in Map</span>
+                      <span className="text-[8px] text-slate-500 italic">Show object in preview canvas</span>
+                    </div>
+                    <button 
+                      onClick={() => onUpdateNode(selectedNode.id, { 
+                        preview: { ...selectedNode.preview, visibleInPreview: !(selectedNode.preview?.visibleInPreview ?? true) } 
+                      })}
+                      className={`w-8 h-4 rounded-full transition-all relative ${selectedNode.preview?.visibleInPreview !== false ? 'bg-sky-500 shadow-[0_0_8px_rgba(14,165,233,0.3)]' : 'bg-slate-700'}`}
+                    >
+                      <div className={`absolute top-0.5 w-3 h-3 rounded-full bg-white transition-all ${selectedNode.preview?.visibleInPreview !== false ? 'left-4' : 'left-0.5'}`} />
+                    </button>
+                  </div>
+
+                  <div className="flex items-center justify-between p-2 hover:bg-slate-800/50 rounded-xl transition-colors">
+                    <div className="flex flex-col">
+                      <span className="text-[10px] font-black text-slate-300 uppercase tracking-widest">Visible in Tree</span>
+                      <span className="text-[8px] text-slate-500 italic">Show as row in preview tree</span>
+                    </div>
+                    <button 
+                      onClick={() => onUpdateNode(selectedNode.id, { 
+                        preview: { ...selectedNode.preview, visibleInPreviewTree: !(selectedNode.preview?.visibleInPreviewTree ?? false) } 
+                      })}
+                      className={`w-8 h-4 rounded-full transition-all relative ${selectedNode.preview?.visibleInPreviewTree ? 'bg-sky-500 shadow-[0_0_8px_rgba(14,165,233,0.3)]' : 'bg-slate-700'}`}
+                    >
+                      <div className={`absolute top-0.5 w-3 h-3 rounded-full bg-white transition-all ${selectedNode.preview?.visibleInPreviewTree ? 'left-4' : 'left-0.5'}`} />
+                    </button>
+                  </div>
+
+                  <div className="flex items-center justify-between p-2 hover:bg-slate-800/50 rounded-xl transition-colors">
+                    <div className="flex flex-col">
+                      <span className="text-[10px] font-black text-slate-300 uppercase tracking-widest">Selectable</span>
+                      <span className="text-[8px] text-slate-500 italic">Enable click selection in preview</span>
+                    </div>
+                    <button 
+                      onClick={() => onUpdateNode(selectedNode.id, { 
+                        preview: { ...selectedNode.preview, selectableInPreview: !(selectedNode.preview?.selectableInPreview ?? true) } 
+                      })}
+                      className={`w-8 h-4 rounded-full transition-all relative ${selectedNode.preview?.selectableInPreview !== false ? 'bg-sky-500 shadow-[0_0_8px_rgba(14,165,233,0.3)]' : 'bg-slate-700'}`}
+                    >
+                      <div className={`absolute top-0.5 w-3 h-3 rounded-full bg-white transition-all ${selectedNode.preview?.selectableInPreview !== false ? 'left-4' : 'left-0.5'}`} />
+                    </button>
+                  </div>
+                </div>
+              </section>
+
+              {/* Visual Role Section */}
+              <section className="space-y-4 pt-4 border-t border-slate-800 px-1">
+                <SectionHeader icon={<Settings2 />} label="Mapping Strategy" />
                <div className="p-4 rounded-2xl bg-slate-800/40 border border-slate-750 space-y-4">
                  <div className="space-y-1.5">
                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block px-1">Node Role</label>

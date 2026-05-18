@@ -164,6 +164,7 @@ export interface StructureNode {
     left?: LayoutSplitDivider;
     right?: LayoutSplitDivider;
   };
+  style?: VisualNodeStyle;
 }
 
 export type ZonePattern = 'solid' | 'stripes-thin' | 'stripes-wide' | 'dots' | 'grid' | 'diagonal-thin' | 'diagonal-wide';
@@ -175,6 +176,12 @@ export interface VisualNodeStyle {
   cornerRadiusBottomRight?: number;
   cornerRadiusBottomLeft?: number;
   isCornerRadiusLocked?: boolean;
+}
+
+export interface VisualNodePreview {
+  visibleInPreview?: boolean;
+  selectableInPreview?: boolean;
+  visibleInPreviewTree?: boolean;
 }
 
 export interface VisualNode {
@@ -208,6 +215,7 @@ export interface VisualNode {
   opacity?: number;
   locked?: boolean;
   nodeRole?: VisualNodeRole;
+  preview?: VisualNodePreview;
 }
 
 export interface Layout {
