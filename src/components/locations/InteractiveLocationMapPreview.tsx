@@ -139,6 +139,8 @@ export function InteractiveLocationMapPreview({
   const [selectedVisualNodeId, setSelectedVisualNodeId] = useState<string | null>(null);
   const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
   const [expandedLocationIds, setExpandedLocationIds] = useState<Set<string>>(new Set());
+  const [mainViewMode, setMainViewMode] = useState<'top' | 'front'>('top');
+  const [showMinimap, setShowMinimap] = useState(true);
 
   // Transforms
   const [topDownTransform, setTopDownTransform] = useState<ViewTransform>({ x: 0, y: 0, scale: 1 });
@@ -160,6 +162,15 @@ export function InteractiveLocationMapPreview({
     if (!selectedLocationId) return null;
     return resolveLocationVisual(selectedLocationId, visualNodes, index);
   }, [selectedLocationId, visualNodes, index]);
+
+  // Auto-switch view mode on selection
+  useEffect(() => {
+    if (resolution?.status === 'front_cell') {
+      setMainViewMode('front');
+    } else if (resolution?.status === 'top_down') {
+      setMainViewMode('top');
+    }
+  }, [resolution]);
 
   // Handle derived selections from resolution
   const activeVisualNodeId = useMemo(() => {
@@ -276,12 +287,12 @@ export function InteractiveLocationMapPreview({
   }, [activeVisualNodeId, visualNodes]);
 
   useEffect(() => {
-    fitTopDown();
-  }, [fitTopDown]);
+    if (mainViewMode === 'top') fitTopDown();
+  }, [fitTopDown, mainViewMode]);
 
   useEffect(() => {
-    if (activeVisualNodeId) fitFront();
-  }, [activeVisualNodeId, fitFront]);
+    if (mainViewMode === 'front' && activeVisualNodeId) fitFront();
+  }, [activeVisualNodeId, fitFront, mainViewMode]);
 
   // Pan to selected node
   useEffect(() => {
@@ -467,113 +478,197 @@ export function InteractiveLocationMapPreview({
 
         {/* Main Preview Area */}
         <div className="flex-1 flex flex-col relative bg-slate-950 overflow-hidden">
-          {/* Top-Down Map Layer */}
-          <div className="flex-1 relative overflow-hidden" ref={topDownContainerRef}>
-            <PanZoomContainer 
-              transform={topDownTransform} 
-              onTransformChange={setTopDownTransform}
-              className="w-full h-full"
-            >
-              <PreviewTopDownMap 
-                visuals={mapVisuals}
-                selectedNodeId={activeVisualNodeId || selectedVisualNodeId}
-                onSelectNode={(node) => {
-                  if (node.preview?.selectableInPreview === false) return;
-                  if (node.locationId) setSelectedLocationId(node.locationId);
-                  else {
-                    setSelectedLocationId(null);
-                    setSelectedVisualNodeId(node.id);
-                  }
-                }}
-                hoveredNodeId={hoveredNodeId}
-                onHoverNode={setHoveredNodeId}
-                transform={topDownTransform}
-              />
-            </PanZoomContainer>
+          {mainViewMode === 'top' ? (
+            <div className="flex-1 relative overflow-hidden" ref={topDownContainerRef}>
+              <PanZoomContainer 
+                transform={topDownTransform} 
+                onTransformChange={setTopDownTransform}
+                className="w-full h-full"
+              >
+                <PreviewTopDownMap 
+                  visuals={mapVisuals}
+                  selectedNodeId={activeVisualNodeId || selectedVisualNodeId}
+                  onSelectNode={(node) => {
+                    if (node.preview?.selectableInPreview === false) return;
+                    if (node.locationId) setSelectedLocationId(node.locationId);
+                    else {
+                      setSelectedLocationId(null);
+                      setSelectedVisualNodeId(node.id);
+                    }
+                  }}
+                  hoveredNodeId={hoveredNodeId}
+                  onHoverNode={setHoveredNodeId}
+                  transform={topDownTransform}
+                />
+              </PanZoomContainer>
 
-            {/* Float Controls Top-Down */}
-            <div className="absolute top-4 right-4 flex flex-col gap-2 z-10">
-              <div className="bg-slate-900/80 backdrop-blur border border-slate-800 rounded-xl p-1 shadow-2xl flex flex-col gap-1">
-                <button onClick={() => setTopDownTransform(t => ({ ...t, scale: t.scale * 1.2 }))} className="p-2 hover:bg-slate-800 rounded-lg transition-colors text-slate-400 hover:text-white" title="Zoom In">
-                  <ZoomIn className="w-4 h-4" />
-                </button>
-                <button onClick={() => setTopDownTransform(t => ({ ...t, scale: t.scale / 1.2 }))} className="p-2 hover:bg-slate-800 rounded-lg transition-colors text-slate-400 hover:text-white" title="Zoom Out">
-                  <ZoomOut className="w-4 h-4" />
-                </button>
-                <div className="h-px bg-slate-800 mx-1" />
-                <button onClick={fitTopDown} className="p-2 hover:bg-slate-800 rounded-lg transition-colors text-slate-400 hover:text-white" title="Fit to View">
-                  <Maximize className="w-4 h-4" />
-                </button>
+              {/* Float Controls Top-Down */}
+              <div className="absolute top-4 right-4 flex flex-col gap-2 z-30">
+                <div className="bg-slate-900/80 backdrop-blur border border-slate-800 rounded-xl p-1 shadow-2xl flex flex-col gap-1">
+                  <button onClick={() => setTopDownTransform(t => ({ ...t, scale: t.scale * 1.2 }))} className="p-2 hover:bg-slate-800 rounded-lg transition-colors text-slate-400 hover:text-white" title="Zoom In">
+                    <ZoomIn className="w-4 h-4" />
+                  </button>
+                  <button onClick={() => setTopDownTransform(t => ({ ...t, scale: t.scale / 1.2 }))} className="p-2 hover:bg-slate-800 rounded-lg transition-colors text-slate-400 hover:text-white" title="Zoom Out">
+                    <ZoomOut className="w-4 h-4" />
+                  </button>
+                  <div className="h-px bg-slate-800 mx-1" />
+                  <button onClick={fitTopDown} className="p-2 hover:bg-slate-800 rounded-lg transition-colors text-slate-400 hover:text-white" title="Fit to View">
+                    <Maximize className="w-4 h-4" />
+                  </button>
+                </div>
+
+                {activeVisualNodeId && visualNodes.find(n => n.id === activeVisualNodeId)?.structure && (
+                  <button 
+                    onClick={() => setMainViewMode('front')}
+                    className="flex items-center gap-2 px-3 py-2 bg-slate-900/80 backdrop-blur border border-slate-800 rounded-xl text-xs font-bold text-sky-400 hover:text-white transition-all shadow-xl hover:bg-slate-800"
+                  >
+                    <LayoutIcon className="w-4 h-4" />
+                    <span>Enter Front View</span>
+                  </button>
+                )}
               </div>
             </div>
-          </div>
-
-          {/* Front View Panel */}
-          <AnimatePresence>
-            {activeVisualNodeId && visualNodes.find(n => n.id === activeVisualNodeId)?.structure && (
-              <motion.div 
-                initial={{ y: "100%" }}
-                animate={{ y: 0 }}
-                exit={{ y: "100%" }}
-                transition={{ type: "spring", damping: 25, stiffness: 200 }}
-                className="absolute inset-x-0 bottom-0 h-[45%] bg-slate-900 border-t border-slate-800 shadow-[0_-20px_50px_rgba(0,0,0,0.5)] z-20 flex flex-col"
-              >
-                <div className="flex items-center justify-between px-4 py-2.5 bg-slate-800/30 border-b border-slate-800 backdrop-blur-md">
-                  <div className="flex items-center gap-3">
-                    <div className="p-1.5 bg-sky-500/10 rounded-lg border border-sky-500/20">
-                      <Layers className="w-4 h-4 text-sky-400" />
-                    </div>
-                    <div>
-                      <span className="text-sm font-bold tracking-tight text-white block">
-                        {visualNodes.find(n => n.id === activeVisualNodeId)?.label}
-                      </span>
-                      <span className="text-[10px] text-slate-500 font-mono uppercase tracking-widest">Front View Structure</span>
-                    </div>
-                  </div>
-                  
-                  <div className="flex items-center gap-2">
-                    <div className="flex items-center gap-1 bg-slate-950/50 p-1 rounded-lg border border-slate-800 mr-2">
-                      <button onClick={() => setFrontTransform(t => ({ ...t, scale: t.scale * 1.2 }))} className="p-1.5 hover:bg-slate-800 rounded text-slate-400 transition-colors">
-                        <ZoomIn className="w-3.5 h-3.5" />
-                      </button>
-                      <button onClick={() => setFrontTransform(t => ({ ...t, scale: t.scale / 1.2 }))} className="p-1.5 hover:bg-slate-800 rounded text-slate-400 transition-colors">
-                        <ZoomOut className="w-3.5 h-3.5" />
-                      </button>
-                      <button onClick={fitFront} className="p-1.5 hover:bg-slate-800 rounded text-slate-400 transition-colors">
-                        <Maximize className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-                    <button 
-                      onClick={() => setSelectedLocationId(null)}
-                      className="p-2 hover:bg-slate-800 rounded-lg transition-colors text-slate-500 hover:text-white"
-                    >
-                      <X className="w-4 h-4" />
-                    </button>
+          ) : (
+            <div className="flex-1 flex flex-col relative bg-slate-950" ref={frontContainerRef}>
+              <div className="flex items-center justify-between px-6 py-4 bg-slate-900/50 border-b border-slate-800 backdrop-blur-md z-30">
+                <div className="flex items-center gap-4">
+                  <button 
+                    onClick={() => setMainViewMode('top')}
+                    className="p-2 hover:bg-slate-800 rounded-lg transition-colors text-slate-400 hover:text-white"
+                  >
+                    <ArrowLeft className="w-5 h-5" />
+                  </button>
+                  <div>
+                    <span className="text-sm font-bold tracking-tight text-white block">
+                      {visualNodes.find(n => n.id === activeVisualNodeId)?.label}
+                    </span>
+                    <span className="text-[10px] text-slate-500 font-mono uppercase tracking-widest">Main Front View</span>
                   </div>
                 </div>
                 
-                <div className="flex-1 overflow-hidden relative bg-slate-950/80" ref={frontContainerRef}>
-                  <PanZoomContainer 
-                    transform={frontTransform}
-                    onTransformChange={setFrontTransform}
-                    className="w-full h-full"
+                <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-1 bg-slate-950/50 p-1.5 rounded-xl border border-slate-800">
+                    <button onClick={() => setFrontTransform(t => ({ ...t, scale: t.scale * 1.2 }))} className="p-2 hover:bg-slate-800 rounded-lg text-slate-400 transition-colors">
+                      <ZoomIn className="w-4 h-4" />
+                    </button>
+                    <button onClick={() => setFrontTransform(t => ({ ...t, scale: t.scale / 1.2 }))} className="p-2 hover:bg-slate-800 rounded-lg text-slate-400 transition-colors">
+                      <ZoomOut className="w-4 h-4" />
+                    </button>
+                    <button onClick={fitFront} className="p-2 hover:bg-slate-800 rounded-lg text-slate-400 transition-colors">
+                      <Maximize className="w-4 h-4" />
+                    </button>
+                  </div>
+                  <button 
+                    onClick={() => setMainViewMode('top')}
+                    className="flex items-center gap-2 px-4 py-2 bg-slate-800 hover:bg-slate-700 rounded-xl text-xs font-bold text-white transition-all"
                   >
-                    <PreviewFrontView 
-                      node={visualNodes.find(n => n.id === activeVisualNodeId || n.id === selectedVisualNodeId)!}
-                      selectedStructureNodeId={activeStructureNodeId}
-                      onSelectCell={(cell) => {
-                        if (cell.locationId) setSelectedLocationId(cell.locationId);
-                        else {
-                          setSelectedLocationId(null);
-                          setSelectedVisualNodeId(activeVisualNodeId);
-                        }
-                      }}
-                    />
-                  </PanZoomContainer>
+                    <MoveDesign className="w-4 h-4" />
+                    <span>Back to Map</span>
+                  </button>
                 </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
+              </div>
+
+              <div className="flex-1 relative overflow-hidden bg-slate-950/80">
+                <PanZoomContainer 
+                  transform={frontTransform}
+                  onTransformChange={setFrontTransform}
+                  className="w-full h-full"
+                >
+                  <PreviewFrontView 
+                    node={visualNodes.find(n => n.id === activeVisualNodeId || n.id === selectedVisualNodeId)!}
+                    selectedStructureNodeId={activeStructureNodeId}
+                    onSelectCell={(cell) => {
+                      if (cell.locationId) setSelectedLocationId(cell.locationId);
+                      else {
+                        setSelectedLocationId(null);
+                        setSelectedVisualNodeId(activeVisualNodeId);
+                      }
+                    }}
+                  />
+                </PanZoomContainer>
+              </div>
+            </div>
+          )}
+
+          {/* Minimap Overlay */}
+          {showMinimap && (
+            <AnimatePresence>
+              {((mainViewMode === 'top' && activeVisualNodeId && visualNodes.find(n => n.id === activeVisualNodeId)?.structure) || 
+                (mainViewMode === 'front')) && (
+                <motion.div 
+                  initial={{ opacity: 0, scale: 0.9, y: 20 }}
+                  animate={{ opacity: 1, scale: 1, y: 0 }}
+                  exit={{ opacity: 0, scale: 0.9, y: 20 }}
+                  className="absolute bottom-6 right-6 w-72 aspect-video bg-slate-900/90 backdrop-blur-xl border border-slate-700 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.5)] overflow-hidden z-40 flex flex-col group"
+                >
+                    <div className="flex items-center justify-between px-3 py-1.5 bg-slate-800/50 border-b border-slate-700">
+                    <span className="text-[9px] font-black uppercase tracking-widest text-slate-400">
+                      {mainViewMode === 'top' ? 'Front View Minimap' : 'Top Map Minimap'}
+                    </span>
+                    <div className="flex items-center gap-1">
+                      <button 
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          const resetEvent = new CustomEvent('reset-minimap');
+                          window.dispatchEvent(resetEvent);
+                        }}
+                        className="p-1 hover:bg-slate-700 rounded text-slate-400 hover:text-white transition-colors"
+                        title="Reset View"
+                      >
+                        <RotateCcw className="w-3 h-3" />
+                      </button>
+                      <button 
+                        onClick={() => setShowMinimap(false)}
+                        className="p-1 hover:bg-slate-700 rounded text-slate-400 hover:text-white transition-colors"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </div>
+                  </div>
+                  
+                  <div 
+                    className="flex-1 relative overflow-hidden bg-slate-950"
+                  >
+                    {mainViewMode === 'top' ? (
+                       <MinimapWrapper 
+                        onSwap={() => setMainViewMode('front')}
+                       >
+                         <PreviewFrontView 
+                            node={visualNodes.find(n => n.id === activeVisualNodeId)!}
+                            selectedStructureNodeId={activeStructureNodeId}
+                            onSelectCell={() => {}} // Read-only in minimap
+                          />
+                       </MinimapWrapper>
+                    ) : (
+                      <MinimapWrapper 
+                        onSwap={() => setMainViewMode('top')}
+                        visuals={mapVisuals}
+                      >
+                        <PreviewTopDownMap 
+                          visuals={mapVisuals}
+                          selectedNodeId={activeVisualNodeId}
+                          onSelectNode={() => {}} // Read-only in minimap
+                          hoveredNodeId={null}
+                          onHoverNode={() => {}}
+                          transform={{ x: 0, y: 0, scale: 1 }} // Transform handled by MinimapWrapper's PanZoomContainer
+                        />
+                      </MinimapWrapper>
+                    )}
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          )}
+
+          {/* Minimap Restore Button */}
+          {!showMinimap && (
+             <button 
+                onClick={() => setShowMinimap(true)}
+                className="absolute bottom-6 right-6 p-3 bg-slate-900/80 backdrop-blur border border-slate-800 rounded-full text-slate-400 hover:text-white shadow-2xl z-40 transition-all hover:scale-110"
+             >
+               <Maximize2 className="w-5 h-5" />
+             </button>
+          )}
         </div>
 
         {/* Details Panel */}
@@ -606,6 +701,14 @@ export function InteractiveLocationMapPreview({
                     </div>
                   </div>
                   
+                  <div className="space-y-1.5">
+                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-600">Current View</p>
+                    <div className="text-xs font-medium text-sky-400 flex items-center gap-2 bg-sky-500/5 p-2 rounded-lg border border-sky-500/10">
+                      {mainViewMode === 'top' ? <Maximize className="w-3.5 h-3.5" /> : <Layers className="w-3.5 h-3.5" />}
+                      {mainViewMode === 'top' ? 'Viewing Top Map' : 'Viewing Front View'}
+                    </div>
+                  </div>
+
                   <div className="space-y-1.5">
                     <p className="text-[10px] font-black uppercase tracking-widest text-slate-600">Workspace</p>
                     <div className="text-xs font-medium text-slate-400 flex items-center gap-2">
@@ -695,24 +798,130 @@ export function InteractiveLocationMapPreview({
 
 // --- Internal Helper Components ---
 
+function MinimapWrapper({ 
+  children, 
+  onSwap,
+  visuals
+}: { 
+  children: React.ReactElement; 
+  onSwap: () => void;
+  visuals?: VisualNode[];
+}) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [transform, setTransform] = useState({ x: 0, y: 0, scale: 0.1 });
+  const [isReady, setIsReady] = useState(false);
+  const dragStartPos = useRef<{ x: number, y: number } | null>(null);
+
+  const fitMinimap = useCallback(() => {
+    if (!containerRef.current) return;
+    const { width: cw, height: ch } = containerRef.current.getBoundingClientRect();
+    if (cw === 0 || ch === 0) return;
+    
+    const childProps = (children.props as any);
+    let contentWidth = 10000;
+    let contentHeight = 10000;
+    let minX = 0;
+    let minY = 0;
+
+    if (childProps.node) {
+      // Front View
+      contentWidth = childProps.node.width;
+      contentHeight = childProps.node.height;
+    } else if (visuals && visuals.length > 0) {
+      // Top Down Map - Calculate real bounds
+      minX = Math.min(...visuals.map(v => v.x));
+      minY = Math.min(...visuals.map(v => v.y));
+      const maxX = Math.max(...visuals.map(v => v.x + v.width));
+      const maxY = Math.max(...visuals.map(v => v.y + v.depth));
+      contentWidth = maxX - minX;
+      contentHeight = maxY - minY;
+    }
+
+    const padding = 10;
+    const s = Math.min((cw - padding * 2) / contentWidth, (ch - padding * 2) / contentHeight);
+    
+    setTransform({
+      x: (cw - contentWidth * s) / 2 - minX * s,
+      y: (ch - contentHeight * s) / 2 - minY * s,
+      scale: s
+    });
+    setIsReady(true);
+  }, [children.props, visuals]);
+
+  useEffect(() => {
+    // Small delay to ensure container size is stabilized
+    const timer = setTimeout(fitMinimap, 50);
+
+    const handleReset = () => fitMinimap();
+    window.addEventListener('reset-minimap', handleReset);
+    
+    return () => {
+      clearTimeout(timer);
+      window.removeEventListener('reset-minimap', handleReset);
+    };
+  }, [fitMinimap]);
+
+  return (
+    <div 
+      ref={containerRef} 
+      className="w-full h-full relative group cursor-pointer"
+      onMouseDown={(e) => {
+        if (e.button === 0) {
+          dragStartPos.current = { x: e.clientX, y: e.clientY };
+        }
+      }}
+      onMouseUp={(e) => {
+        if (e.button === 0 && dragStartPos.current) {
+          const dist = Math.sqrt(
+            Math.pow(e.clientX - dragStartPos.current.x, 2) + 
+            Math.pow(e.clientY - dragStartPos.current.y, 2)
+          );
+          if (dist < 5) onSwap(); // Quick click swaps
+          dragStartPos.current = null;
+        }
+      }}
+    >
+      <div className={cn("w-full h-full transition-opacity duration-500", isReady ? "opacity-100" : "opacity-0")}>
+        <PanZoomContainer 
+          transform={transform}
+          onTransformChange={setTransform}
+          className="w-full h-full"
+          maxScale={5}
+          minScale={0.0001}
+          panningButton={1} // MMB for pan
+        >
+          {React.cloneElement(children, { transform } as any)}
+        </PanZoomContainer>
+      </div>
+    </div>
+  );
+}
+
 function PanZoomContainer({ 
   children, 
   transform, 
   onTransformChange, 
-  className 
+  className,
+  maxScale = 10,
+  minScale = 0.1,
+  panningButton = 0
 }: { 
   children: React.ReactNode; 
   transform: ViewTransform;
   onTransformChange: (t: ViewTransform) => void;
   className?: string;
+  maxScale?: number;
+  minScale?: number;
+  panningButton?: number;
 }) {
   const isDragging = useRef(false);
   const lastPos = useRef({ x: 0, y: 0 });
 
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
+    if (e.button !== panningButton) return;
     isDragging.current = true;
     lastPos.current = { x: e.clientX, y: e.clientY };
-  }, []);
+  }, [panningButton]);
 
   const handleMouseMove = useCallback((e: React.MouseEvent) => {
     if (!isDragging.current) return;
@@ -732,9 +941,9 @@ function PanZoomContainer({
 
   const handleWheel = useCallback((e: React.WheelEvent) => {
     e.preventDefault();
-    const zoomSpeed = 0.001;
-    const delta = -e.deltaY * zoomSpeed;
-    const newScale = Math.min(Math.max(transform.scale + delta, 0.1), 10);
+    const zoomSpeed = 0.0015;
+    const zoomFactor = Math.pow(1.1, -e.deltaY / 100);
+    const newScale = Math.min(Math.max(transform.scale * zoomFactor, minScale), maxScale);
     
     // Zoom toward mouse position
     const rect = e.currentTarget.getBoundingClientRect();
@@ -750,11 +959,15 @@ function PanZoomContainer({
       y: transform.y + dy,
       scale: newScale
     });
-  }, [transform, onTransformChange]);
+  }, [transform, onTransformChange, maxScale, minScale]);
 
   return (
     <div 
-      className={cn("cursor-grab active:cursor-grabbing select-none overflow-hidden", className)}
+      className={cn(
+        "select-none overflow-hidden", 
+        panningButton === 0 ? "cursor-grab active:cursor-grabbing" : "",
+        className
+      )}
       onMouseDown={handleMouseDown}
       onMouseMove={handleMouseMove}
       onMouseUp={handleMouseUp}
@@ -766,13 +979,14 @@ function PanZoomContainer({
           transform: `translate(${transform.x}px, ${transform.y}px) scale(${transform.scale})`,
           transformOrigin: '0 0'
         }}
-        className="w-full h-full transform-gpu transition-transform duration-75 ease-out"
+        className="w-full h-full transform-gpu"
       >
         {children}
       </div>
     </div>
   );
 }
+
 
 function LocationTree({ 
   locations, 
@@ -1078,11 +1292,13 @@ function PreviewTopDownMap({
 function PreviewFrontView({ 
   node, 
   selectedStructureNodeId, 
-  onSelectCell 
+  onSelectCell,
+  transform = { x: 0, y: 0, scale: 1 } 
 }: { 
   node: VisualNode;
   selectedStructureNodeId: string | null;
   onSelectCell: (node: StructureNode) => void;
+  transform?: ViewTransform;
 }) {
   if (!node.structure) return null;
 
