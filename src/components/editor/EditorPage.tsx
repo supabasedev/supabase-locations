@@ -1,7 +1,8 @@
 import React, { useState, useMemo } from 'react';
 import { 
   Box,
-  Package
+  Package,
+  AlertTriangle
 } from 'lucide-react';
 import { 
   Layout, 
@@ -43,12 +44,21 @@ export default function EditorPage({
   onBack 
 }: EditorPageProps) {
   const [viewMode, setViewMode] = useState<ViewMode>(ViewMode.TOP_DOWN);
-  const [activeTab, setActiveTab] = useState<Tab>(viewMode === ViewMode.FRONT ? 'structure' : 'locations');
-  const [selectedTool, setSelectedTool] = useState<EditorTool>('select');
+  const [activeTab, setActiveTab ] = useState<Tab>('locations');
+  const [selectedTool, setSelectedTool ] = useState<EditorTool>('select');
   const [selectedNodeIds, setSelectedNodeIds] = useState<string[]>([]);
   const [selectedFrontCellIds, setSelectedFrontCellIds] = useState<string[]>([]);
   const [selectedFrontDividerIds, setSelectedFrontDividerIds] = useState<string[]>([]);
   
+  // Warning modal state
+  const [activeWarning, setActiveWarning] = useState<{
+    type: 'delete_visual' | 'unlink_visual';
+    nodes: string[];
+    title: string;
+    message: string;
+    subLocations?: string[];
+  } | null>(null);
+
   // ... rest of state ...
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isDataDialogOpen, setIsDataDialogOpen] = useState(false);
@@ -65,19 +75,42 @@ export default function EditorPage({
 
   // Sync tab when viewMode changes
   React.useEffect(() => {
-    if (viewMode === ViewMode.FRONT) {
-      setActiveTab('structure');
-    } else if (activeTab === 'structure') {
-      setActiveTab('visuals');
-    }
+    setActiveTab('locations');
   }, [viewMode]);
+
+  // Selection synchronization cleanup helper to avoid stale settings
+  React.useEffect(() => {
+    setSelectedFrontCellIds([]);
+    setSelectedFrontDividerIds([]);
+  }, [selectedNodeIds]);
+
+  const getNestedMappedLocations = (node: VisualNode): string[] => {
+    const locCodes: string[] = [];
+    if (node.locationId) {
+      const loc = locations.find(l => l.id === node.locationId);
+      if (loc) locCodes.push(loc.code);
+    }
+    const scanStructure = (s: any) => {
+      if (s.locationId) {
+        const loc = locations.find(l => l.id === s.locationId);
+        if (loc) locCodes.push(loc.code);
+      }
+      if (s.children) {
+        s.children.forEach(scanStructure);
+      }
+    };
+    if (node.structure) {
+      scanStructure(node.structure);
+    }
+    return locCodes;
+  };
 
   const handleNavigateToMapping = (location: LogicalLocation) => {
     // 1. Check Top-Down Mapping
     const topDownNode = visuals.find(v => v.locationId === location.id);
     if (topDownNode) {
       setSelectedNodeIds([topDownNode.id]);
-      setActiveTab('visuals');
+      setActiveTab('locations');
       setViewMode(ViewMode.TOP_DOWN);
       return;
     }
@@ -100,7 +133,7 @@ export default function EditorPage({
       setSelectedNodeIds([parentNode.id]);
       if (cellId) setSelectedFrontCellIds([cellId]);
       setViewMode(ViewMode.FRONT);
-      setActiveTab('structure');
+      setActiveTab('locations');
       return;
     }
     
@@ -132,21 +165,47 @@ export default function EditorPage({
   
   const selectedNodeId = selectedNodeIds[0] || null;
   
+  const selectedNode = useMemo(() => {
+    // 1. Direct match with visual node
+    const directVisual = layoutVisuals.find(v => v.id === selectedNodeId);
+    if (directVisual) return directVisual;
+
+    // 2. Resolve via selected Location ID
+    if (selectedNodeId) {
+      // Find top-down visual node mapped to this location
+      const topDown = layoutVisuals.find(v => v.locationId === selectedNodeId);
+      if (topDown) return topDown;
+
+      // Find if this is mapped to a cell in some visual's front structure
+      const findsInStructure = (n: any, tId: string): string | null => {
+        if (n.locationId === tId) return n.id;
+        if (n.children) {
+          for (const c of n.children) {
+            const found = findsInStructure(c, tId);
+            if (found) return found;
+          }
+        }
+        return null;
+      };
+
+      const cellParent = layoutVisuals.find(v => v.structure && findsInStructure(v.structure, selectedNodeId));
+      if (cellParent) return cellParent;
+    }
+    return null;
+  }, [layoutVisuals, selectedNodeId]);
+
   const isFrontDisabled = useMemo(() => {
-    if (selectedNodeIds.length !== 1) return true;
-    const node = layoutVisuals.find(v => v.id === selectedNodeIds[0]);
-    if (!node) return true;
+    if (!selectedNode) return true;
     // Floor (root) has parentId === null. Zones have type === 'zone'.
-    return node.parentId === null || node.type === 'zone';
-  }, [selectedNodeIds, layoutVisuals]);
+    return selectedNode.parentId === null || selectedNode.type === 'zone' || !selectedNode.supportsFrontView;
+  }, [selectedNode]);
 
-  const selectedNode = useMemo(() => 
-    layoutVisuals.find(v => v.id === selectedNodeId) || null
-  , [layoutVisuals, selectedNodeId]);
-
-  const selectedNodes = useMemo(() => 
-    layoutVisuals.filter(v => selectedNodeIds?.includes(v.id))
-  , [layoutVisuals, selectedNodeIds]);
+  const selectedNodes = useMemo(() => {
+    if (selectedNodeIds.length === 1 && selectedNode) {
+      return [selectedNode];
+    }
+    return layoutVisuals.filter(v => selectedNodeIds?.includes(v.id));
+  }, [layoutVisuals, selectedNodeIds, selectedNode]);
 
   const selectedLocation = useMemo(() => {
     // If a node is selected, try to find its linked location
@@ -161,10 +220,38 @@ export default function EditorPage({
   }, [selectedNode, selectedNodeId, locations, layoutVisuals]);
 
   const handleUnlink = (nodeId: string) => {
+    const node = visuals.find(v => v.id === nodeId);
+    if (node) {
+      const mappedLocs = getNestedMappedLocations(node);
+      if (mappedLocs.length > 0) {
+        setActiveWarning({
+          type: 'unlink_visual',
+          nodes: [nodeId],
+          title: "Unlink Mapped Visual Node",
+          message: `Unlinking objects will sever the physical bridge connection for the following logical locations. They will return to unmapped status.`,
+          subLocations: mappedLocs
+        });
+        return;
+      }
+    }
     setVisuals(prev => prev.map(v => v.id === nodeId ? { ...v, locationId: null } : v));
   };
 
   const handleRemoveVisual = (nodeId: string) => {
+    const node = visuals.find(v => v.id === nodeId);
+    if (node) {
+      const mappedLocs = getNestedMappedLocations(node);
+      if (mappedLocs.length > 0) {
+        setActiveWarning({
+          type: 'delete_visual',
+          nodes: [nodeId],
+          title: "Delete Physical Visual Node",
+          message: `Permanently deleting will destroy the physical placement model mapping for following locations:`,
+          subLocations: mappedLocs
+        });
+        return;
+      }
+    }
     setVisuals(prev => prev.filter(v => v.id !== nodeId));
     setSelectedNodeIds(prev => prev.filter(id => id !== nodeId));
   };
@@ -563,6 +650,57 @@ export default function EditorPage({
             onImport={handleImport}
             onClose={() => setIsDataDialogOpen(false)}
           />
+        )}
+        {activeWarning && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-4">
+            <div className="max-w-md w-full p-6 bg-slate-900 border border-slate-800 rounded-3xl shadow-2xl space-y-5 animate-in fade-in zoom-in-95 duration-200">
+              <div className="flex items-start gap-3 text-amber-500 bg-amber-500/5 border border-amber-500/10 p-4 rounded-2xl">
+                <AlertTriangle className="w-5 h-5 shrink-0 mt-0.5" />
+                <div>
+                  <h4 className="text-xs font-black uppercase tracking-wider text-amber-400">{activeWarning.title}</h4>
+                  <p className="text-[10px] text-slate-400 mt-1 leading-relaxed">{activeWarning.message}</p>
+                </div>
+              </div>
+
+              {activeWarning.subLocations && activeWarning.subLocations.length > 0 && (
+                <div className="space-y-1.5">
+                  <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest italic px-1">Affected Locations:</p>
+                  <div className="max-h-32 overflow-y-auto bg-slate-950 rounded-xl p-3 border border-slate-850 space-y-1 scrollbar-thin scrollbar-thumb-slate-800">
+                    {activeWarning.subLocations.map((loc, idx) => (
+                      <div key={idx} className="flex items-center gap-2 text-[10px] font-mono text-slate-300">
+                        <span className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0" />
+                        {loc}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <div className="flex gap-2 justify-end pt-2">
+                <button
+                  onClick={() => setActiveWarning(null)}
+                  className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => {
+                    const idsToChange = activeWarning.nodes;
+                    if (activeWarning.type === 'delete_visual') {
+                      setVisuals(prev => prev.filter(v => !idsToChange.includes(v.id)));
+                      setSelectedNodeIds(prev => prev.filter(id => !idsToChange.includes(id)));
+                    } else if (activeWarning.type === 'unlink_visual') {
+                      setVisuals(prev => prev.map(v => idsToChange.includes(v.id) ? { ...v, locationId: null } : v));
+                    }
+                    setActiveWarning(null);
+                  }}
+                  className="px-4 py-2 bg-rose-600 hover:bg-rose-500 text-white rounded-xl text-[9px] font-black uppercase tracking-widest hover:shadow-[0_0_15px_rgba(225,29,72,0.4)] transition-all border border-rose-500/20"
+                >
+                  Confirm Action
+                </button>
+              </div>
+            </div>
+          </div>
         )}
       </AnimatePresence>
     </div>
